@@ -1,0 +1,7 @@
+# Never commit game data or build output.
+*.bin
+*.cue
+*.iso
+*.img
+disk/
+build/
