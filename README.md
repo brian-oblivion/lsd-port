@@ -5,12 +5,16 @@ OutSide Directors Company), built from the matching decompilation
 [lsddecomp](https://github.com/brian-oblivion/lsddecomp). Linux comes first;
 the code is kept portable so Windows (and others) can follow.
 
+> **Work in progress: not playable yet.** There is no release to download,
+> and a build does not get you a game: it reaches the title menu, but
+> movies, 3D and sound are still missing. Follow along, but don't expect to
+> play it.
+
 **Status:** the game's C compiles and links against the platform layer,
 [psyz](https://github.com/Xeeynamo/psyz) (through the fork
-[lsd-psyz](https://github.com/brian-oblivion/lsd-psyz)), but does not run
-yet: much of the SDK is still stubbed (`src/stubs.c`,
-`docs/research/host-link-surface.md`). With the real disc it reads its first
-files and stops at the first logo. See
+[lsd-psyz](https://github.com/brian-oblivion/lsd-psyz)). With the real disc
+it plays its intro logos and reaches the title menu. Much of the SDK is
+still stubbed (`src/stubs.c`, `docs/research/host-link-surface.md`). See
 [docs/PLAN.md](docs/PLAN.md) for the tracks to a playable build.
 
 ## The game
