@@ -11,12 +11,22 @@ file is the concrete plan for that track, not a replacement for it.
   C. The repo is byte-matching: it builds the retail executable exactly,
   with the PS1 toolchain.
 - `psyz/`: `brian-oblivion/lsd-psyz`, the project's fork of
-  `Xeeynamo/psyz`, pinned at `6bd06da` (its `main`). Its own submodules
+  `Xeeynamo/psyz`, pinned to its `main` (upstream plus the libgs fix). Its own submodules
   `external/SDL` and `external/cimgui` are initialised; nugget and the decomp
   tools are not needed.
 - `CMakeLists.txt` builds psyz (with a static SDL3) and an `lsd`
   executable from `src/main.c`, a placeholder that draws text through psyz.
   `./build/lsd --frames 120` runs and exits 0.
+- `src/main.c` options for tools and agents: `LSD_DEBUG_PORT=<port>`
+  starts psyz's debug server on 127.0.0.1 (`/screenshot`, `/vram`,
+  `/metrics`, `/input`). `LSD_VSYNC=off` paces at 59.94 fps (headless runs
+  are otherwise uncapped). Run headless with
+  `env -u DISPLAY SDL_VIDEO_DRIVER=offscreen`; never open windows on the
+  desktop.
+- psyz's libgs couldn't draw: the drawing area was never set, so
+  everything came out black. This is fixed on the fork's `main` (branch
+  `libgs-drawbuff`, tests in `psyz/tests/test_libgs.c`). Expect more such
+  gaps in libgs; the coverage file lists them.
 - CI (`.github/workflows/build.yml`) builds Linux and runs 60 frames
   offscreen, and cross-builds Windows with MinGW. CI has no game data and
   never will.

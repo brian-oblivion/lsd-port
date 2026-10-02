@@ -6,6 +6,9 @@
 #include <libgpu.h>
 #include <libgs.h>
 #include <libgte.h>
+#include <psyz/dbgserver.h>
+#include <psyz/video.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,6 +26,33 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc - 1; i++) {
         if (strcmp(argv[i], "--frames") == 0) {
             frames = atoi(argv[i + 1]);
+        }
+    }
+
+    // LSD_DEBUG_PORT=<port>: psyz's debug server on 127.0.0.1 (screenshots,
+    // VRAM, input injection) for tools and agents.
+    const char* debugPort = getenv("LSD_DEBUG_PORT");
+    if (debugPort != NULL) {
+        int port = Psyz_DebugServer(atoi(debugPort));
+        fprintf(stderr, "debug server on 127.0.0.1:%d\n", port);
+    }
+
+    // LSD_VSYNC=auto|on|off|limitless: psyz's frame pacing. "off" paces with
+    // psyz's own limiter (59.94 fps), so the game keeps running while its
+    // window is hidden or when there is no display.
+    static const struct {
+        const char* name;
+        PsyzVsyncMode mode;
+    } vsyncModes[] = {
+        {"auto", PSYZ_VSYNC_AUTO},
+        {"on", PSYZ_VSYNC_ON},
+        {"off", PSYZ_VSYNC_OFF},
+        {"limitless", PSYZ_VSYNC_LIMITLESS},
+    };
+    const char* vsync = getenv("LSD_VSYNC");
+    for (size_t i = 0; vsync != NULL && i < sizeof(vsyncModes) / sizeof(*vsyncModes); i++) {
+        if (strcmp(vsync, vsyncModes[i].name) == 0) {
+            Psyz_VideoSetVsyncMode(vsyncModes[i].mode);
         }
     }
 
