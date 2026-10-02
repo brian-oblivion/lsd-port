@@ -4,5 +4,6 @@
 *.iso
 *.img
 disk/
+disc/
 build/
 build-*/

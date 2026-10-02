@@ -82,9 +82,19 @@ The snapshot's 146 functions, as the linker sees them:
 
 ## What happens at run time
 
-With no disc image `lsd` exits with 2 and says so. With one (`--disc
-game.cue`), the game runs `main` through `New_GameApplication` to its
-first file, `ETC\DREAME5.TMD`: on a blank image `CdSearchFile` fails, the
-game prints its "file not found" message, and `LinkResource__BuildModels`
-then reads the missing buffer, a NULL pointer. On the PS1 that read does not fault; on
-the host it does. Both widths stop there.
+With no disc image `lsd` exits with 2 and says so. On a blank image the
+game stops at its first file, `ETC\DREAME5.TMD`: `CdSearchFile` fails and
+`LinkResource__BuildModels` reads the missing buffer through NULL.
+
+With the real disc (2026-10-02, lsddecomp `80797bbef`, psyz `main`
+`8030744`), psyz's libcd finds and reads the files through the `.cue`:
+
+- **i686** reads `ETC\DREAME5.TMD`, builds its models, and goes on to
+  the first intro logo, `ETC\ASMKLOGO.TIM`. It stops there in
+  `TaskCore__SetState` (`decomp/src/app/task_core.c:239`): an image
+  task has no target, and the state `TASKCORE_STATE_ACTIVE` reads
+  `self->target->unselectedColor` through NULL. The PS1 reads address 0
+  without faulting (kernel RAM); the host faults. This is the next stop.
+- **x86_64** stops earlier, in `BMemPMgrAlloc` called from
+  `LinkResource__BuildModels` for DREAME5.TMD: the heap and the hand-sized
+  layouts `docs/design.md` lists for 64-bit.

@@ -6,6 +6,8 @@
 // (0 after --frames N).
 
 #include <psyz.h>
+#include <SDL3/SDL_filesystem.h>
+#include <SDL3/SDL_stdinc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +28,22 @@ static void CountFrame(void) {
     }
 }
 
+// The disc image when neither --disc nor LSD_DISC names one: the only .cue
+// in disc/ under the working directory (README, "The game"). NULL when there
+// is none, or more than one to choose from.
+static char* FindDefaultDisc(void) {
+    int count = 0;
+    char** cues = SDL_GlobDirectory("disc", "*.cue", SDL_GLOB_CASEINSENSITIVE, &count);
+    char* path = NULL;
+    if (cues != NULL && count == 1) {
+        SDL_asprintf(&path, "disc/%s", cues[0]);
+    } else if (count > 1) {
+        fprintf(stderr, "lsd: %d .cue files in disc/; pass --disc to pick one\n", count);
+    }
+    SDL_free(cues);
+    return path;
+}
+
 int main(int argc, char** argv) {
     // --disc FILE.cue (or LSD_DISC): the user's disc image, which psyz's
     // libcd reads. The game needs it from its first file on.
@@ -38,7 +56,10 @@ int main(int argc, char** argv) {
         }
     }
     if (disc == NULL) {
-        fprintf(stderr, "lsd: no disc image; pass --disc path/to/game.cue\n");
+        disc = FindDefaultDisc();
+    }
+    if (disc == NULL) {
+        fprintf(stderr, "lsd: no disc image; put it in disc/ or pass --disc path/to/game.cue\n");
         return 2;
     }
     if (Psyz_CdSetDiskPath(disc) != 0) {

@@ -109,9 +109,12 @@ PS1 is psyz's to explain.
 Concretely:
 
 1. The port's default build is i686 (`-m32` on Linux, `i686-w64-mingw32`
-   on Windows). CI adds the multilib packages.
+   on Windows). CI adds the multilib packages. *Done*: `LSD_ARCH`
+   (default `i686`) picks `cmake/linux-i686.cmake`; Windows i686 is
+   `cmake/windows-i686.cmake`.
 2. CI also builds x86_64 and records the width warnings (71 today), so
-   the count can only go down. Fixes that are correct at both widths and
+   the count can only go down. *Done*: the Linux and MinGW jobs build
+   both widths, and the Linux job writes the count to the run summary. Fixes that are correct at both widths and
    byte-exact on the PS1, like the StyleConfig change, land in lsddecomp
    as they are found.
 3. PLAN.md's "Later: 64-bit clean" becomes a measured list: the 71
@@ -129,11 +132,11 @@ nothing can test it yet.
 ### Reproducing
 
 ```sh
-# 64-bit (the default build) and 32-bit
+# 32-bit (the default build) and 64-bit
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake -S . -B build-m32 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-    -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32
-ninja -C build -t clean lsd_game && ninja -C build lsd_game 2>&1 |
+cmake -S . -B build-x86_64 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DLSD_ARCH=x86_64
+ninja -C build-x86_64 -t clean lsd_game && ninja -C build-x86_64 lsd_game 2>&1 |
     grep -c 'pointer-to-int-cast\|int-to-pointer-cast'
-tools/class-sizes.py build-m32
+tools/class-sizes.py build
 ```
