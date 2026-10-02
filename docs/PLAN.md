@@ -57,7 +57,11 @@ Decided (2026-10-02), so not reopened without the operator:
 - platforms: Linux first, portable from the start (Windows is requested):
   no OS calls outside SDL3 or one `src/platform/` file, and CI cross-builds
   Windows with MinGW;
-- licence: MIT.
+- licence: MIT;
+- pointer width (2026-10-02): **32-bit first** (i686 on Linux and
+  Windows), with the x86_64 build kept compiling in CI and its width
+  warnings only going down; 64-bit clean stays under "Later"
+  (docs/design.md has the measurements).
 
 Still open:
 
@@ -69,8 +73,6 @@ Still open:
     primitives with a VRAM model, or a software rasteriser of the PS1 GPU;
   - audio: an SPU emulation fed by the game's own libsnd calls, or libsnd
     reimplemented on SDL audio; CD-DA/XA and the MDEC movies;
-  - pointer width: 32-bit (`-m32`) first, then 64-bit clean, or 64-bit from
-    the start;
   - disc access: reading the user's `.bin/.cue` (ISO9660 plus XA sectors);
   - the build (CMake or Make) and how it pulls lsddecomp's sources;
   - where changes to the shared C go: upstream to lsddecomp (they must stay

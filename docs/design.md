@@ -3,7 +3,9 @@
 The decisions in PLAN.md's "Decided" list are not repeated here. This file
 holds the measurements behind the open ones, with a recommendation each.
 
-## Pointer width: 32-bit first, or 64-bit from the start (*open*)
+## Pointer width: 32-bit first (*decided 2026-10-02*)
+
+The operator took the recommendation below.
 
 Measured 2026-10-02 on the game's C as it compiles for the host
 (task 01: lsddecomp `e5daad5c3`, psyz fork `main` `8030744`), GCC 16.2,
