@@ -45,10 +45,18 @@ jobs:
       - name: Build
         run: cmake --build build
 
-      - name: Smoke test (60 frames, offscreen)
+      # CI has no disc, so the game cannot start: lsd must say so and exit
+      # with 2. This checks that the game and psyz link into a program that
+      # runs, not the game itself.
+      - name: Smoke test (no disc)
         env:
           SDL_VIDEO_DRIVER: offscreen
-        run: timeout -s KILL 60 ./build/lsd --frames 60
+        run: |
+          set +e
+          timeout -s KILL 60 ./build/lsd --frames 60 2> stderr.txt
+          status=$?
+          cat stderr.txt
+          test "$status" -eq 2 && grep -q 'no disc image' stderr.txt
 
       - uses: actions/upload-artifact@v4
         with:

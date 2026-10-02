@@ -1,32 +1,53 @@
-// Placeholder entry point: brings psyz up and draws a line of text, so the
-// build, the platform layer and CI can be exercised before any game C is
-// compiled. The game's own main (decomp/src) replaces this.
+// The host's entry point: reads the port's own options, brings up the tools
+// psyz offers, then runs the game's main (decomp/src/main.c, compiled with
+// main renamed to lsd_game_main), which never returns.
+//
+// Exit codes: 2 when there is no usable disc image; otherwise the game's
+// (0 after --frames N).
 
-#include <libetc.h>
-#include <libgpu.h>
-#include <libgs.h>
-#include <libgte.h>
-#include <psyz/dbgserver.h>
-#include <psyz/video.h>
+#include <psyz.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define SCREEN_WIDTH 320
-#define SCREEN_HEIGHT 240
-#define OT_LENGTH 1
+void lsd_game_main(void);
+void LsdStubs_Report(void);
 
-static GsOT sOt[2];
-static GsOT_TAG sOtTags[2][1 << OT_LENGTH];
-static PACKET sPackets[2][64];
+// --frames N: exit after N VSyncs, for smoke tests; 0 runs forever.
+static int sFrameLimit;
+static int sFrameCount;
+static PsyzVSyncCb sNextVSyncCb;
+
+static void CountFrame(void) {
+    if (sNextVSyncCb != NULL) {
+        sNextVSyncCb();
+    }
+    if (sFrameLimit > 0 && ++sFrameCount >= sFrameLimit) {
+        exit(0);
+    }
+}
 
 int main(int argc, char** argv) {
-    // --frames N: exit after N frames (for smoke tests); 0 runs forever.
-    int frames = 0;
+    // --disc FILE.cue (or LSD_DISC): the user's disc image, which psyz's
+    // libcd reads. The game needs it from its first file on.
+    const char* disc = getenv("LSD_DISC");
     for (int i = 1; i < argc - 1; i++) {
         if (strcmp(argv[i], "--frames") == 0) {
-            frames = atoi(argv[i + 1]);
+            sFrameLimit = atoi(argv[i + 1]);
+        } else if (strcmp(argv[i], "--disc") == 0) {
+            disc = argv[i + 1];
         }
+    }
+    if (disc == NULL) {
+        fprintf(stderr, "lsd: no disc image; pass --disc path/to/game.cue\n");
+        return 2;
+    }
+    if (Psyz_CdSetDiskPath(disc) != 0) {
+        fprintf(stderr, "lsd: cannot read the disc image %s\n", disc);
+        return 2;
+    }
+    if (sFrameLimit > 0) {
+        sNextVSyncCb = Psyz_SetVSyncCb(CountFrame);
     }
 
     // LSD_DEBUG_PORT=<port>: psyz's debug server on 127.0.0.1 (screenshots,
@@ -56,30 +77,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    SetVideoMode(MODE_NTSC);
-    ResetGraph(0);
-    GsInitGraph(SCREEN_WIDTH, SCREEN_HEIGHT, GsNONINTER | GsOFSGPU, 1, 0);
-    GsDefDispBuff(0, 0, 0, SCREEN_HEIGHT);
-    for (int i = 0; i < 2; i++) {
-        sOt[i].length = OT_LENGTH;
-        sOt[i].org = sOtTags[i];
-        GsClearOt(0, 0, &sOt[i]);
-    }
-
-    FntLoad(960, 256);
-    SetDumpFnt(FntOpen(16, 16, SCREEN_WIDTH - 32, SCREEN_HEIGHT - 32, 0, 512));
-
-    for (int frame = 0; frames == 0 || frame < frames; frame++) {
-        FntPrint("lsd-port skeleton\n\nframe %d\n", frame);
-        FntFlush(-1);
-        int buf = GsGetActiveBuff();
-        GsSetWorkBase(sPackets[buf]);
-        GsClearOt(0, 0, &sOt[buf]);
-        DrawSync(0);
-        VSync(0);
-        GsSwapDispBuff();
-        GsSortClear(0, 0, 0, &sOt[buf]);
-        GsDrawOt(&sOt[buf]);
-    }
+    LsdStubs_Report();
+    lsd_game_main();
     return 0;
 }

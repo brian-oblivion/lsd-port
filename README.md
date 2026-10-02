@@ -5,10 +5,11 @@ OutSide Directors Company), built from the matching decompilation
 [lsddecomp](https://github.com/brian-oblivion/lsddecomp). Linux comes first;
 the code is kept portable so Windows (and others) can follow.
 
-**Status:** skeleton. The build brings up the platform layer,
+**Status:** the game's C compiles and links against the platform layer,
 [psyz](https://github.com/Xeeynamo/psyz) (through the fork
-[lsd-psyz](https://github.com/brian-oblivion/lsd-psyz)), and draws a
-placeholder screen; none of the game's C is compiled yet. See
+[lsd-psyz](https://github.com/brian-oblivion/lsd-psyz)), but does not run
+yet: it stops at its first file read. Much of the SDK is still stubbed
+(`src/stubs.c`, `docs/research/host-link-surface.md`). See
 [docs/PLAN.md](docs/PLAN.md) for the tracks to a playable build.
 
 You will need your own copy of the game: the port reads the game's data from
@@ -28,8 +29,13 @@ git submodule update --init decomp psyz
 git -C psyz submodule update --init external/SDL external/cimgui
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build
-./build/lsd
+./build/lsd --disc path/to/game.cue
 ```
+
+Without `--disc` (or `LSD_DISC`), `lsd` exits with status 2. Other
+options: `--frames N` exits after N frames; `LSD_DEBUG_PORT=<port>` starts
+psyz's debug server on 127.0.0.1; `LSD_VSYNC=auto|on|off|limitless` sets
+the frame pacing.
 
 Windows, cross-compiled from Linux with MinGW (`mingw-w64`):
 
@@ -46,6 +52,7 @@ cmake --build build-win
 | `decomp/` | lsddecomp, the game's C (submodule) |
 | `psyz/` | lsd-psyz, the Psy-Q replacement for PC (submodule) |
 | `src/` | the port's own code |
+| `tools/` | measurement scripts |
 | `docs/` | the plan and design notes |
 
 ## Licence
