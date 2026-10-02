@@ -20,9 +20,10 @@ it builds its PC version from `src/pc/` and links psyz as a submodule.
   for a host yet.
 - **The Psy-Q SDK is linked from Sony's own objects**: 178 MIPS `.o` files
   (`config/psyq-objects.txt`). None of that can run on a PC, so the port
-  replaces the whole SDK surface the game calls: about 290 functions across
+  replaces the whole SDK surface the game calls: 146 functions across
   libgpu/libgs, libgte, libcd, libspu/libsnd, libpad/libetc, libcard/libapi
-  and the kernel (`python3 tools/plan.py`, track 2's list).
+  and the kernel, of which psyz implements about half
+  (`docs/research/psyz-coverage-2026-10-02.md`).
 - **Some Sony code is carried as C** (`src/psyq/`: libsnd's sequencer,
   libcd's bios, libcard), because no SDK disc has the exact build. It
   compiles for the host as-is, or the platform layer replaces it.
@@ -44,6 +45,21 @@ Each track is a checklist; an item is done when its sentence is true and
 measured. Items marked *decision* are the operator's.
 
 ### 1. Design
+
+Decided (2026-10-02), so not reopened without the operator:
+
+- platform layer: **psyz**, through the fork `brian-oblivion/lsd-psyz` as the
+  `psyz/` submodule; SDK gaps are fixed there and sent upstream as PRs;
+- renderer and audio: psyz's (SDL3 GPU or GL; its SPU emulation), extended
+  rather than replaced; enhancements (widescreen, resolution) come after
+  "playable" and mostly live in the layer;
+- build: CMake, pulling lsddecomp's sources from the `decomp/` submodule;
+- platforms: Linux first, portable from the start (Windows is requested):
+  no OS calls outside SDL3 or one `src/platform/` file, and CI cross-builds
+  Windows with MinGW;
+- licence: MIT.
+
+Still open:
 
 - `design`: `docs/design.md` answers, with a recommendation each:
   - the platform layer: **psyz** (Xeeynamo's Psy-Q reimplementation for PC,
