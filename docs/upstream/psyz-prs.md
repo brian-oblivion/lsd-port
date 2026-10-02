@@ -164,3 +164,63 @@ from PSY-Q 3.3's LIBGS objects (`2d_sp0`, `2d_bg0`, `2d_com0`, `2d_box0`,
 - `GsCELL`'s u and v are bytes (PSY-Q's cell is 8 bytes).
 
 Existing libgs tests pass; the new calls have no host test yet.
+
+## `libapi-vsync-n`: VSync(n) waits n vertical blanks
+
+`VSync(n)` with n > 1 presented and paced one frame, so a game running at
+20 fps on `VSync(3)` ran three times too fast, and every timer counted in
+its frames ran out early (LSD's title menu closed after about 3 s instead
+of 10). `Psyz_VideoVSync(n)` now presents and waits until n blanks have
+passed since the previous blocking call: the SDL3 limiter scales its
+target by n; with driver VSync the timer covers the blanks after the
+first. The PSP backend waits the extra blanks with
+`sceDisplayWaitVblankStart` (**unbuilt**: no PSP toolchain at hand). New
+gpu test `vsync_n_waits_n_vblanks` fails before, passes after.
+
+## `libgte-matrix`: MulMatrix2, ApplyMatrixSV, ApplyMatrixLV, Square0
+
+Written from Sony's `mtx.o`, `mtx_00.o` and `smp_00.o`: each loads the GTE
+as Sony's does and runs psyz's MVMVA/SQR, so MAC, IR and FLAG come out the
+same, with the rotation matrix left loaded. `ApplyMatrixLV` splits each
+32-bit component into a 15-bit high and low part, as Sony's does
+(exact below 2^30, wrapping above). `MulMatrix2` writes the IR3 sign into
+the padding after m[2][2], as Sony's 32-bit `swc2` does. The three
+declarations are the same hunks as `libgte-decls`, so the two merge
+cleanly. 13 tests in `test_libgte.c`.
+
+## `libgte-rcpoly`: RCpoly* polygon subdivision
+
+`RCpolyF3/F4/FT3/FT4/G3/G4/GT3/GT4` in a new `src/psyz/libgte_div.c`,
+from Sony's `div*a.o`: recursive division to `ndiv` levels with plain
+`(a+b)>>1` midpoints (UV and colour too), new vertices projected with
+RTPT, per-level near-Z and screen-window rejection, primitives linked at
+the head of `divp->ot` with psyz's `addPrim`. `ndiv` 0 returns and
+above 5 is clamped (Sony's would never end, or overrun `cr[]`). 8 tests.
+
+## `libgs-3d`: coordinates, the reference view, flat lights, TMD linking
+
+Stacked on `libgs-2d` and `libgte-matrix`. `GsInitCoordinate2`,
+`GsGetLw`, `GsGetLs`, `GsGetLws`, `GsMulCoord2`, `GsSetLsMatrix`,
+`GsSetLightMatrix`, `GsSetRefView2`, `GsSetProjection`, `GsSetNearClip`,
+`GsSetAmbient`, `GsSetFlatLight`, `GsSetLightMode`, `GsMapModelingData`
+and `GsLinkObject4`, from Sony's `gs_10x`/`gs_13x`/`matrix.o` (and
+`GsLinkObject4`'s jump table): the coordinate walk caches `workm` per
+frame (`flg == PSDCNT`), `GsSetRefView2` scales the two points to 15 bits
+and wraps its squared distances as the console does, and `GsInitGraph`
+now sets `GsIDMATRIX2` (aspect in m[1][1]) and clears the light
+matrices. `GsMapModelingData` maps TMD offsets in place, so it needs
+data below 4 GB: its two tests skip on 64-bit hosts. 9 tests (`gs3d`).
+
+## `libgte-fog`: SetFogNear, and InitGeom's DQB
+
+`InitGeom` set DQB to 0x140 where Sony's sets 0x1400000, and `SetFogNear`
+was a stub; depth cueing saturated IR0 and raised FLAG bit 12 on every
+vertex. `SetFogNear(a, h)`: DQA = -(a*320)/h, DQB = 0x1400000, as Sony's
+`fog_01.o`. Two tests.
+
+## `libgte-stflg4`: gte_stflg_4
+
+Sony's `inline_c.h` has `gte_stflg` (the whole FLAG) and `gte_stflg_4`
+(bit 18 alone, SZ3/OTZ saturated). psyz had only the first; added for
+the C host macros and the PS1 inline-asm block (**unbuilt** on PS1). One
+test.

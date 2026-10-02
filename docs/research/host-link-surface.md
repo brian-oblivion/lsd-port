@@ -10,18 +10,18 @@ shows whether psyz now provides it.
 To reproduce: remove `src/stubs.c` from the `lsd` target and build; the
 undefined references are this list.
 
-## SDK functions psyz lacks (30)
+## SDK functions psyz lacks (5)
 
 The game links against psyz's headers; none of these has a body in psyz's
-PC build. Eight of the first count's 38 are done (task 02): `GsInit3D`,
+PC build. Of the first count's 38, task 02 did eight: `GsInit3D`,
 `GsGetTimInfo`, `GsSortBg`, `GsSortBoxFill`, `GsSortSprite` (psyz branch
 `libgs-2d`), `SsUtGetVabHdr` (`libsnd-vabhdr`), `StClearRing` and
-`StUnSetRing` (`libcd-stream`).
+`StUnSetRing` (`libcd-stream`). Task 03 did 25: the 13 libgs 3D calls
+(`libgs-3d`), `ApplyMatrixLV`, `ApplyMatrixSV`, `MulMatrix2` and `Square0`
+(`libgte-matrix`), and the eight `RCpoly*` (`libgte-rcpoly`).
 
 | library | functions |
 | --- | --- |
-| libgs (13) | `GsMapModelingData`, `GsLinkObject4`, `GsInitCoordinate2`, `GsGetLs`, `GsGetLws`, `GsSetAmbient`, `GsSetFlatLight`, `GsSetLightMatrix`, `GsSetLightMode`, `GsSetLsMatrix`, `GsSetNearClip`, `GsSetProjection`, `GsSetRefView2` |
-| libgte (12) | `ApplyMatrixLV`, `ApplyMatrixSV`, `MulMatrix2`, `Square0`, `RCpolyF3`, `RCpolyF4`, `RCpolyFT3`, `RCpolyFT4`, `RCpolyG3`, `RCpolyG4`, `RCpolyGT3`, `RCpolyGT4` |
 | libsnd (4) | `SsSeqPause`, `SsSeqReplay`, `SsSetMute`, `SsUtAutoVol` |
 | libapi (1) | `SetMem` |
 
@@ -32,9 +32,8 @@ implemented" (or does part of the job). The libcd streaming calls
 (`CdRead2`, `StSetRing`, `StSetStream`, `StGetNext`, `StFreeRing`) and
 libpress (`DecDCTReset`, `DecDCTin`, `DecDCTout`, `DecDCToutCallback`,
 `DecDCTvlc`) are implemented now (branches `libcd-stream`,
-`libpress-mdec`).
+`libpress-mdec`), and so is libgte's `SetFogNear` (`libgte-fog`).
 
-- libgte: `SetFogNear`
 - libsnd: `SsSeqOpen`
 - libapi: `EnterCriticalSection`, `ExitCriticalSection` (psyz's
   `PS1_` names), `EnableEvent`, `DisableEvent` (partly)
@@ -109,8 +108,36 @@ Sound is unverified: SDL loads the audio libraries at run time, and on
 this machine the 32-bit ALSA library (`lib32-alsa-lib`) is not
 installed, so the SPU and XA output went nowhere.
 
-The next stop is behind START, in the 3D world: the 13 libgs and 12
-libgte functions above.
+### Into the dream (task 03)
+
+Pressing START at the title menu now starts a day and plays the dream:
+the first stage's room, textured, lit and fogged, links to the next area
+when walked into, and the day ends in the dream graph. What it took, in
+order (lsddecomp branch `task-03-host`, psyz fork `main`):
+
+1. The title menu timed out before START could be pressed, after about
+   3 s instead of 10: psyz's `VSync(n)` paced one frame for any n, and the
+   game runs at `VSync(3)` (psyz `libapi-vsync-n`).
+2. Starting the day wrote 1 over a return address: `CdDriver`'s
+   retail store through a pointer it never sets (lsddecomp `71ea45019`).
+3. `GsMapModelingData` and the rest of libgs 3D were stand-ins
+   (`libgs-3d`, stacked on `libgte-matrix`; `libgte-rcpoly` alongside).
+4. The end of the dream flushed an empty cue slot through NULL, which
+   the PS1 survives (lsddecomp `f42cd5a12`).
+5. The dream was a screen of fog colour, from three causes:
+   - psyz's `InitGeom` set DQB to 0x140, not 0x1400000, and `SetFogNear`
+     was a stub (`libgte-fog`);
+   - `gte.h` named Sony's masked `gte_stflg_4` `gte_stflg`, so on the
+     host the TMD renderer saw the whole FLAG and culled every face
+     (lsddecomp `9f0a26978`, psyz `libgte-stflg4`);
+   - the game's one memory pool, the console's 1435 KB, ran out on the
+     host (larger primitives and OT entries), so the stage's textures
+     never loaded (lsddecomp `a5746a4d6`: 4 MB on the host).
+
+`GsSetFlatLight` warns of a negative `SquareRoot0` on the way in:
+`StageMap` sets a light's colour before its direction, so the first call
+sees an uninitialised direction. The next call corrects it, on the PS1
+too.
 
 x86_64 stops earlier, in `BMemPMgrAlloc` called from
 `LinkResource__BuildModels` for `ETC\DREAME5.TMD`: the heap and the
