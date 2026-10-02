@@ -54,7 +54,11 @@ one stop at a time, as task 02 did. Expected first: the libgs 3D calls
   they need, saying so); merge into the fork's `main`; remove the
   matching stand-ins from `src/stubs.c` (brace-counted, one-line stubs
   are easy to over-delete). lsddecomp fixes go under `HOST_BUILD` with
-  `./build-and-verify.sh` green, then bump `decomp/`.
+  `./build-and-verify.sh` **and `tools/lint.sh`** green (lint is what
+  lsddecomp's CI runs; a two-line `MATCHING:` note fails it), then bump
+  `decomp/`.
+- **Never push to any repo's `main` without the operator reviewing the
+  diff first.** Commit locally and ask.
 
 ## Known loose ends
 
