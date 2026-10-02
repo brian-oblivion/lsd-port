@@ -19,7 +19,8 @@ list(FILTER LSD_GAME_SOURCES EXCLUDE REGEX "/src/psyq/")
 add_library(lsd_game OBJECT ${LSD_GAME_SOURCES})
 target_include_directories(lsd_game PRIVATE ${LSD_DECOMP_DIR}/include)
 target_link_libraries(lsd_game PRIVATE psyz)
-target_compile_definitions(lsd_game PRIVATE PLATFORM_PC)
+# HOST_BUILD: lsddecomp's switch for any build that is not the PS1's.
+target_compile_definitions(lsd_game PRIVATE HOST_BUILD)
 # psyz's porting guide: <psyz.h> comes before every other header.
 # Plain char is unsigned on the PS1 (lsddecomp builds with -funsigned-char).
 target_compile_options(lsd_game PRIVATE -include psyz.h -funsigned-char)
@@ -36,5 +37,4 @@ set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
 # src/stubs.c: temporary stand-ins for what psyz and lsddecomp lack yet.
 add_executable(lsd src/main.c src/stubs.c)
 target_link_libraries(lsd PRIVATE lsd_game psyz)
-target_compile_definitions(lsd PRIVATE PLATFORM_PC)
 psyz_title(lsd "LSD: Dream Emulator")

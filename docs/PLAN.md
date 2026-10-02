@@ -76,7 +76,7 @@ Still open:
   - disc access: reading the user's `.bin/.cue` (ISO9660 plus XA sectors);
   - the build (CMake or Make) and how it pulls lsddecomp's sources;
   - where changes to the shared C go: upstream to lsddecomp (they must stay
-    byte-exact there: `#ifdef PLATFORM_PC` only where C cannot be shared)
+    byte-exact there: `#ifdef HOST_BUILD` only where C cannot be shared)
     or as patches here;
   - the licence, compatible with psyz's and lsddecomp's.
 - `approach` (*decision*): the operator approves the design.
@@ -84,7 +84,7 @@ Still open:
 ### 2. The game's C builds for Linux
 
 - `submodule`: lsddecomp pinned as `decomp/`; the build compiles every game
-  `.c` from it with the host compiler (`-DPLATFORM_PC`), with zero errors,
+  `.c` from it with the host compiler (`-DHOST_BUILD`), with zero errors,
   and lists the unresolved Sony symbols: the platform layer's surface.
 - `gte-c`: host versions of the `gte_*` macros, equal to the PS1's results
   for the calls the game makes.

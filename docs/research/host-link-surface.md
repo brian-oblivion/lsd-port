@@ -1,6 +1,6 @@
 # The host link surface (2026-10-02)
 
-What the linker reports missing when the game's C (lsddecomp `348f38606`)
+What the linker reports missing when the game's C (lsddecomp `3127186d5`)
 links against psyz (fork `main` `8030744`) on Linux x86_64; i686 and
 MinGW report the same list. It replaces the regex estimate in
 `psyz-coverage-2026-10-02.md` as the platform layer's to-do list. Each
@@ -51,7 +51,7 @@ and places some uninitialised globals by address
   `sStyleEffectSlots`, `sStyleCueSlotPool`, and the nine words
   `sStyleSpawnOffsetX` .. `sStyleSpawnColors` that the code lays one
   `StyleEffectParams` over. They have no contents, so lsddecomp now defines
-  them under `PLATFORM_PC` in their units, sized from the code; the nine
+  them under `HOST_BUILD` in their units, sized from the code; the nine
   are one `StyleEffectParams` there, as psyz's porting guide asks of
   overlapping symbols.
 - **37 read-only objects** with contents: file paths, messages and

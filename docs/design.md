@@ -13,10 +13,11 @@ Arch Linux.
 
 ### What 64-bit costs
 
-**Pointers and integers.** Built 64-bit (x86_64), the game's C gives 75
+**Pointers and integers.** Built 64-bit (x86_64), the game's C gives 71
 warnings where an address passes through a 32-bit integer
-(`-Wpointer-to-int-cast` 33, `-Wint-to-pointer-cast` 42), in 21 files.
-StyleLayer has 33 of them: it keeps its scene references (`sStyleSceneRefs`,
+(`-Wpointer-to-int-cast` 29, `-Wint-to-pointer-cast` 42), in 16 files
+(75 when first measured; lsddecomp `5993e36f7` fixed StyleLayer's spawn
+colours). StyleLayer has 29 of them: it keeps its scene references (`sStyleSceneRefs`,
 `sStyleDecorObj`, `sStyleGrid`) as `s32` and casts them back at each use.
 The rest are one or a few per file: method arguments typed `s32` that carry
 an object (`DayTask`'s `init`, `ObjM`'s `RegisterStyleConfig` and
@@ -25,7 +26,8 @@ queue (`param0` is a buffer address), the viewport's OT buffer, model lists
 kept as `s32` arrays (TriggerWorld, DreamAux). Each is a real truncation at
 64 bits. Most are a type change in a header plus the casts at its uses;
 none was attempted beyond StyleConfig, whose static initializer did not
-compile at all (lsddecomp `751c5a592`).
+compile at all (lsddecomp `751c5a592`), and the spawn colours that review
+caught.
 
 **Layouts.** Every class's layout moves: of 38 classes whose PS1 object
 size lsddecomp documents, none has it on x86_64 (`tools/class-sizes.py`;
@@ -97,7 +99,7 @@ The cost is in the toolchain and the platforms:
 
 **32-bit first**, with the 64-bit build kept compiling. The game's C
 already compiles both ways; what 64-bit adds is a redesign of how libgs and
-the game treat TMD data, the hand sizes, the heap, and some 75 typed-as-
+the game treat TMD data, the hand sizes, the heap, and some 71 typed-as-
 `s32` addresses, each before the game can run correctly, and none of it
 testable until psyz's libgs draws. At 32 bits the game's data layouts are
 the console's, so the platform layer can be brought up against the same
@@ -108,11 +110,11 @@ Concretely:
 
 1. The port's default build is i686 (`-m32` on Linux, `i686-w64-mingw32`
    on Windows). CI adds the multilib packages.
-2. CI also builds x86_64 and records the width warnings (75 today), so
+2. CI also builds x86_64 and records the width warnings (71 today), so
    the count can only go down. Fixes that are correct at both widths and
    byte-exact on the PS1, like the StyleConfig change, land in lsddecomp
    as they are found.
-3. PLAN.md's "Later: 64-bit clean" becomes a measured list: the 75
+3. PLAN.md's "Later: 64-bit clean" becomes a measured list: the 71
    sites, `GRIDCELL_SIZE`, the pool, and TMD relocation (in psyz and in
    the game). Static asserts on the layouts the PS1 data fixes
    (`TmdObject`, the TMD header, the memory-card header) come first, so
