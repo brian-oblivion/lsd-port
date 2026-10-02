@@ -1,6 +1,30 @@
 cmake_minimum_required(VERSION 3.21..3.31)
 
+# 32-bit first (docs/design.md): on Linux the default build is i686, through
+# cmake/linux-i686.cmake. LSD_ARCH=x86_64 builds the 64-bit one with the
+# host's compiler as-is; CI keeps it compiling. A toolchain file given on the
+# command line (Windows, for example) takes precedence.
+set(LSD_ARCH i686 CACHE STRING "Linux build: i686 (default) or x86_64")
+set_property(CACHE LSD_ARCH PROPERTY STRINGS i686 x86_64)
+if(NOT CMAKE_TOOLCHAIN_FILE AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux"
+        AND LSD_ARCH STREQUAL "i686")
+    set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/linux-i686.cmake)
+endif()
+
 project(lsd-port C)
+message(STATUS "lsd-port: ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}, "
+               "${CMAKE_SIZEOF_VOID_P}-byte pointers")
+# A build directory configured before i686 became the default keeps its
+# 64-bit compiler settings, whatever LSD_ARCH says.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(LSD_ARCH STREQUAL "i686" AND NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+        message(FATAL_ERROR "LSD_ARCH is i686 but this build directory "
+            "compiles 64-bit: configure a new one, or pass -DLSD_ARCH=x86_64")
+    elseif(LSD_ARCH STREQUAL "x86_64" AND NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+        message(FATAL_ERROR "LSD_ARCH is x86_64 but this build directory "
+            "compiles 32-bit: configure a new one")
+    endif()
+endif()
 
 set(CMAKE_C_STANDARD 11)
 
