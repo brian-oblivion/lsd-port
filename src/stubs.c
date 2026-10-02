@@ -66,7 +66,6 @@ u_long* RCpolyGT4(void* s, DIVPOLYGON4* divp) {
 
 // libgs
 
-void GsInit3D(void) { NOT_IMPLEMENTED; }
 void GsMapModelingData(u_long* base) { NOT_IMPLEMENTED; }
 void GsLinkObject4(u_long tmd_base, GsDOBJ2* objp, int n) { NOT_IMPLEMENTED; }
 void GsInitCoordinate2(GsCOORDINATE2* super, GsCOORDINATE2* base) {
@@ -76,7 +75,6 @@ void GsGetLs(GsCOORDINATE2* coord, MATRIX* m) { NOT_IMPLEMENTED; }
 void GsGetLws(GsCOORDINATE2* coord, MATRIX* lw, MATRIX* ls) {
     NOT_IMPLEMENTED;
 }
-void GsGetTimInfo(u_long* im, GsIMAGE* tim) { NOT_IMPLEMENTED; }
 void GsSetAmbient(long r, long g, long b) { NOT_IMPLEMENTED; }
 int GsSetFlatLight(int id, GsF_LIGHT* light) {
     NOT_IMPLEMENTED;
@@ -91,13 +89,6 @@ int GsSetRefView2(GsRVIEW2* pv) {
     NOT_IMPLEMENTED;
     return 0;
 }
-void GsSortBg(GsBG* bg, GsOT* otp, unsigned short pri) { NOT_IMPLEMENTED; }
-void GsSortBoxFill(GsBOXF* boxf, GsOT* otp, unsigned short pri) {
-    NOT_IMPLEMENTED;
-}
-void GsSortSprite(GsSPRITE* sprite, GsOT* otp, unsigned short pri) {
-    NOT_IMPLEMENTED;
-}
 
 // libsnd
 
@@ -108,15 +99,8 @@ short SsUtAutoVol(short vc, short start_vol, short end_vol, short delta_time) {
     NOT_IMPLEMENTED;
     return 0;
 }
-short SsUtGetVabHdr(short vabId, VabHdr* vabhdrptr) {
-    NOT_IMPLEMENTED;
-    return -1;
-}
 
 // libcd
-
-void StClearRing(void) { NOT_IMPLEMENTED; }
-void StUnSetRing(void) { NOT_IMPLEMENTED; }
 
 // libapi
 

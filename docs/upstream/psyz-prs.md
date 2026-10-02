@@ -99,3 +99,68 @@ there).
 The kernel's `write()` takes a void pointer and games pass structures;
 `psyz_write` took `char *` everywhere but Windows. Now `const void *` on
 Unix and PSP too.
+
+## `gpu-32bit-flush`: 32-bit targets drew nothing
+
+On 32-bit targets `GPU_Enqueue`'s fast path (#107) dispatches primitives
+straight into the draw buffer and leaves them there. `Psyz_GpuExeque`
+began with `Draw_ResetBuffer`, so the next `DrawSync`, `LoadImage` or
+`StoreImage` dropped them undrawn: on i686 Linux only block fills and
+VRAM transfers reached the VRAM. Exeque now flushes the buffer before
+resetting it. Upstream `main`'s host tests at i686: 211 passed, 41
+failed before, 248/4 after (the four are the `bu`/`truncation` file
+tests, which fail on x86_64 too); x86_64 unchanged at 248/4.
+
+## `libcd-stream`: CdRead2 and the St* streaming calls
+
+`CdRead2` was a stub returning 0 (games that retry it hang), and the
+`St*` calls were stubs. `CdRead2(CdlModeStream)` now starts a stream at
+`CD_pos`, its XA audio going through the existing `CdlModeRT` path.
+`StGetNext` assembles each video frame from the stream's data sectors
+(`StHEADER` + 2016 bytes each) in psyz's own buffer, and hands it out
+once a drive started at `CdRead2` (single or double speed, by
+`VSync(-1)`'s clock) would have read it, so movies play at their rate.
+`StFreeRing`, `StClearRing`, `StUnSetRing`, `StSetStream` (start and end
+frame, callbacks) and `StSetRing` go with it; `CdlPause`/`CdlStop` end
+the stream. No host test: it needs a CD image with an STR file (checked
+with LSD: Dream Emulator's movies).
+
+## `libpress-mdec`: a software MDEC and the BS VLC decode
+
+`DecDCTvlc` decodes BS version 1 and 2 frames (version 3 logs once and
+is not decoded) into run-level codes; `DecDCTin`/`DecDCTout` decode
+those into 15- or 24-bit macroblocks: the default quantization table,
+the IDCT and the YCbCr conversion psx-spx documents, the AC codes being
+MPEG-1's table B.14 (111 codes, prefix-free, checked). Transfers finish
+before the call returns, and the `DecDCTout` callback runs before
+`DecDCTout` returns, so the usual strip-by-strip loop driven from that
+callback recurses once per strip. `DecDCTGetEnv`/`PutEnv`, the `Sync`
+calls and `DecDCTBufSize` are filled in. No host test yet (a synthetic
+BS frame would do); checked on LSD's 320x240 frames by eye.
+
+## `libsnd-vabhdr`: SsUtGetVabHdr in C
+
+Assembly only before. Copies an open VAB's header, as `SsUtGetProgAtr`
+copies a program's attributes; -1 for a VAB that is not open.
+
+## `libgs-2d`: the 2D sorts, GsGetTimInfo, GsInit3D, PSY-Q's GsClearOt
+
+Stacked on `libgs-sdk-header` and `libgs-drawbuff` (it merges both: it
+needs `GsIDMATRIX`/`GsLIGHT_MODE` and the draw-buffer offset). Written
+from PSY-Q 3.3's LIBGS objects (`2d_sp0`, `2d_bg0`, `2d_com0`, `2d_box0`,
+`gs_104`, `gs_113`, `gs_122`, `gs_013`) and the matching game.
+
+- `GsClearOt` clears in reverse (`ClearOTagR`) with the work pointer on
+  the last tag, so pri 0 is drawn last, in front.
+- `GsInit3D` puts the origin at the screen's centre (and sets the 3D
+  clip and light mode); `GsSetOrign` sets it.
+- `GsSortSprite`: (x, y) is where the pivot (mx, my) goes; DR_TPAGE +
+  SPRT unless rotated, scaled or flipped (or always with attribute bit
+  27), else a POLY_FT4 through the GTE at the projection distance.
+- `GsSortBg`: the scrolled, wrapping window of the map, one POLY_FT4 per
+  visible cell, with PSY-Q's UV rules for plain and transformed BGs and
+  the cell flips. `GsSortBoxFill`: DR_TPAGE + TILE.
+- `GsGetTimInfo`; `ReadGeomScreen`/`ReadGeomOffset` in libgte.
+- `GsCELL`'s u and v are bytes (PSY-Q's cell is 8 bytes).
+
+Existing libgs tests pass; the new calls have no host test yet.
