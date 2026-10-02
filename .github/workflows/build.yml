@@ -1,0 +1,86 @@
+# Builds the port with no game data: the disc image is never available here,
+# so this checks that the code compiles and that psyz comes up, not that the
+# game runs.
+name: build
+
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the run in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only the submodules the port needs: psyz's nugget and decomp tools are
+      # for PS1 builds.
+      - name: Submodules
+        run: |
+          git submodule update --init decomp psyz
+          git -C psyz submodule update --init external/SDL external/cimgui
+
+      # libsdl2-dev is not linked; it pulls in the X11/Wayland/audio headers
+      # that SDL3's own build needs, as psyz's CI does.
+      - name: Install requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build libsdl2-dev libxtst-dev mesa-vulkan-drivers
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Smoke test (60 frames, offscreen)
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: timeout -s KILL 60 ./build/lsd --frames 60
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsd-linux-x86_64
+          path: build/lsd
+
+  # Windows, cross-compiled with MinGW on Linux, using psyz's toolchain file.
+  # It is only built here, not run.
+  windows-mingw:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submodules
+        run: |
+          git submodule update --init decomp psyz
+          git -C psyz submodule update --init external/SDL external/cimgui
+
+      - name: Install requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_TOOLCHAIN_FILE=psyz/psyz/cmake/windows-x86_64.cmake
+
+      - name: Build
+        run: cmake --build build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsd-windows-x86_64
+          path: build/lsd.exe

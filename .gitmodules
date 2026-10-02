@@ -1,0 +1,6 @@
+[submodule "decomp"]
+	path = decomp
+	url = https://github.com/brian-oblivion/lsddecomp.git
+[submodule "psyz"]
+	path = psyz
+	url = https://github.com/brian-oblivion/lsd-psyz.git

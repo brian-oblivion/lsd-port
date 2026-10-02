@@ -5,3 +5,4 @@
 *.img
 disk/
 build/
+build-*/
