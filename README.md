@@ -8,8 +8,8 @@ the code is kept portable so Windows (and others) can follow.
 **Status:** the game's C compiles and links against the platform layer,
 [psyz](https://github.com/Xeeynamo/psyz) (through the fork
 [lsd-psyz](https://github.com/brian-oblivion/lsd-psyz)), but does not run
-yet: it stops at its first file read. Much of the SDK is still stubbed
-(`src/stubs.c`, `docs/research/host-link-surface.md`). See
+yet: much of the SDK is still stubbed (`src/stubs.c`,
+`docs/research/host-link-surface.md`), and the disc access is untested. See
 [docs/PLAN.md](docs/PLAN.md) for the tracks to a playable build.
 
 You will need your own copy of the game: the port reads the game's data from

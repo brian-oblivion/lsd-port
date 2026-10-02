@@ -1,6 +1,6 @@
 # The host link surface (2026-10-02)
 
-What the linker reports missing when the game's C (lsddecomp `e5daad5c3`)
+What the linker reports missing when the game's C (lsddecomp `348f38606`)
 links against psyz (fork `main` `8030744`) on Linux x86_64; i686 and
 MinGW report the same list. It replaces the regex estimate in
 `psyz-coverage-2026-10-02.md` as the platform layer's to-do list. Each
@@ -38,7 +38,7 @@ they are as much a to-do as the table above.
   `PS1_` names), `EnableEvent`, `DisableEvent` (partly)
 - libcard: `_bu_init`, `_card_info`, `_card_load` (partly)
 
-## The game's own data that is not in its C (37 + 18)
+## The game's own data that was not in its C (37 + 18)
 
 lsddecomp builds the PS1 executable partly from data that splat extracts
 from the retail executable at build time (`asm/data`, never committed),
@@ -54,24 +54,13 @@ and places some uninitialised globals by address
   them under `PLATFORM_PC` in their units, sized from the code; the nine
   are one `StyleEffectParams` there, as psyz's porting guide asks of
   overlapping symbols.
-- **37 read-only objects** with contents, still assembly in lsddecomp:
-  file paths (`sModelPathDreamE5`, `sDreamerTmdPath`, `sEtcTimPath`, the
-  seven `sSoundBank*Path`, `sTitleTimPath`, `sTitleMenuFontPath`,
-  `sTitleMenuSoundBankPath`, `sGraphTimPath`, `sGraphSoundBankPath`,
-  `sLogoPathAsmk`, `sLogoPathOsd`, `sAsmkMoviePath`, `sSaveIconTimPath`),
-  messages and `printf` formats (`sBMemPMgrInitFailFmt`,
-  `sCdFileNotFoundFmt`, `sFileNotFoundMsg`, `sFileNotCreatedMsg`,
-  `sSeqOpenErrorMsg`), the memory-card texts and icon names
-  (`sCardFilePrefixText`, `sSaveFileNameText`, `sSaveTitleText`,
-  `sSaveTitleBlanksText`, `sSaveTitleGlyphTable`, `sNoCardIconName`,
-  `sSaveNoSpaceIconName`, `sLoadNotFoundIconName`,
-  `sTitleMenuFlashbackName`), and the text-entry character sets
-  (`sStrNameChars`, `sStrComInput`, `sStrFontIcon`,
-  `sItemListStrFontIcon`). `src/stubs.c` zero-fills them at their PS1
-  sizes, so the game cannot name any file until they are real. This
-  needs a decision (see the task report): written as C in lsddecomp (as
-  matched C where it can be byte-exact, else under `PLATFORM_PC`), or
-  read from the user's own executable on the disc at startup.
+- **37 read-only objects** with contents: file paths, messages and
+  `printf` formats, the memory-card texts and icon names, the text-entry
+  character sets and the save title's glyphs. They were assembly that
+  splat extracts from the retail executable; lsddecomp now has them as C
+  in the units that use them, byte-exact on the PS1 (lsddecomp
+  `348f38606`). The save file's name and title, which the game writes,
+  are writable on the host (`IMAGE_CONST`).
 
 ## Against the coverage snapshot
 
@@ -95,8 +84,7 @@ The snapshot's 146 functions, as the linker sees them:
 
 With no disc image `lsd` exits with 2 and says so. With one (`--disc
 game.cue`), the game runs `main` through `New_GameApplication` to its
-first file, `sModelPathDreamE5`: `CdSearchFile` fails (the name is a
-placeholder, and a blank image has no files either), the game prints its
-"file not found" message, and `LinkResource__BuildModels` then reads the
-missing buffer, a NULL pointer. On the PS1 that read does not fault; on
+first file, `ETC\DREAME5.TMD`: on a blank image `CdSearchFile` fails, the
+game prints its "file not found" message, and `LinkResource__BuildModels`
+then reads the missing buffer, a NULL pointer. On the PS1 that read does not fault; on
 the host it does. Both widths stop there.

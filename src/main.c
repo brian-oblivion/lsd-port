@@ -11,7 +11,6 @@
 #include <string.h>
 
 void lsd_game_main(void);
-void LsdStubs_Report(void);
 
 // --frames N: exit after N VSyncs, for smoke tests; 0 runs forever.
 static int sFrameLimit;
@@ -77,7 +76,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    LsdStubs_Report();
     lsd_game_main();
     return 0;
 }
