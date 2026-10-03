@@ -1,0 +1,118 @@
+# Release archives of the 32-bit builds, Linux and Windows: the binary, the
+# licences of everything linked in, and how to run it (tools/package.sh). No
+# game data and no BIOS: the build never has either.
+#
+# A tag v* builds both and makes a *draft* GitHub release with them, which
+# the operator reads and publishes by hand. Run by hand (workflow_dispatch),
+# it only builds the archives, as workflow artifacts.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux-i686
+          - platform: windows-i686
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submodules
+        run: |
+          git submodule update --init decomp psyz
+          git -C psyz submodule update --init external/SDL external/cimgui
+
+      - name: Install requirements
+        run: |
+          if [ "${{ matrix.platform }}" = linux-i686 ]; then
+            sudo dpkg --add-architecture i386
+            pkgs="gcc-multilib g++-multilib libsdl2-dev:i386 libxtst-dev:i386"
+          else
+            pkgs="gcc-mingw-w64-i686 g++-mingw-w64-i686"
+          fi
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build $pkgs
+
+      - name: Build
+        run: |
+          if [ "${{ matrix.platform }}" = linux-i686 ]; then
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          else
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_TOOLCHAIN_FILE=cmake/windows-i686.cmake
+          fi
+          cmake --build build
+
+      # The tested build type, stripped. lsd.exe must need nothing but
+      # Windows' own DLLs (it links MinGW's runtime statically); the Linux
+      # binary only glibc and libgcc_s, and what SDL opens at run time
+      # (README, "Running a release").
+      - name: Check what the binary needs
+        run: |
+          if [ "${{ matrix.platform }}" = linux-i686 ]; then
+            strip build/lsd
+            readelf -d build/lsd | grep NEEDED
+            if readelf -d build/lsd | grep NEEDED | grep -v 'libc\.so\|libm\.so\|libgcc_s\.so'; then
+              exit 1
+            fi
+            objdump -T build/lsd | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            i686-w64-mingw32-strip build/lsd.exe
+            dlls=$(i686-w64-mingw32-objdump -p build/lsd.exe | sed -n 's/.*DLL Name: //p')
+            echo "$dlls"
+            if echo "$dlls" | grep -iv '^\(advapi32\|gdi32\|imm32\|kernel32\|ole32\|oleaut32\|setupapi\|shell32\|user32\|version\|winmm\|ws2_32\|msvcrt\|api-ms-win-crt-.*\)\.dll$'; then
+              exit 1
+            fi
+          fi
+
+      # The MPL 2.0 text, which psyz's platform layer is under and which psyz
+      # does not ship.
+      - name: Licence texts
+        run: |
+          curl -fsSL https://www.mozilla.org/media/MPL/2.0/index.txt -o "$RUNNER_TEMP/MPL-2.0.txt"
+          grep -q 'Mozilla Public License Version 2.0' "$RUNNER_TEMP/MPL-2.0.txt"
+
+      - name: Package
+        env:
+          MPL_TEXT: ${{ runner.temp }}/MPL-2.0.txt
+        run: |
+          version=${GITHUB_REF_NAME}
+          [ "$GITHUB_REF_TYPE" = tag ] || version=$(git rev-parse --short HEAD)
+          if [ "${{ matrix.platform }}" = linux-i686 ]; then bin=build/lsd; else bin=build/lsd.exe; fi
+          tools/package.sh "$bin" "lsd-$version-${{ matrix.platform }}" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsd-${{ matrix.platform }}
+          path: dist/*
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l dist
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --draft --title "$GITHUB_REF_NAME" \
+            --notes "Native builds of LSD: Dream Emulator for 32-bit Linux and Windows. You need your own disc image of the game (README.txt in each archive); no game data is included."

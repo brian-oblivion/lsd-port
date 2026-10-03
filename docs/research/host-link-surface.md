@@ -249,3 +249,40 @@ step in the shading or by about a texel at edges and in the window's
 texture, since psyz rasterises on the host GPU. The dream graph after
 day 1 has the same layout and the same point. Movie frames match by eye;
 their levels, before the MDEC fix, did not (above).
+
+### Release (task 06)
+
+Saves: the cards are `bu00/` and `bu10/` in SDL's per-user folder
+(`~/.local/share/lsd-port/lsd/`, `%APPDATA%\lsd-port\lsd\`), or in
+`--saves DIR` / `LSD_SAVES`, through `Psyz_AdjustPathCB` in `src/main.c`;
+psyz's `_bu_init` now makes the card directories where they are mapped
+(psyz `libcard-bu-init-path`). Checked headless: SAVE on day 2, LOAD after
+a restart brings day 2 back, from the default folder (with
+`XDG_DATA_HOME` in scratch), from `LSD_SAVES` (a folder that did not
+exist yet) and with `--saves` overriding `LSD_SAVES`; an old `bu00/` in
+the working directory gets a note on stderr and is left alone.
+
+The card model (psyz `libcard-new-card`): `_card_info` and `_card_load`
+deliver their SwCARD events through the kernel's event states
+(`EnableEvent`, `DisableEvent`, `TestEvent` resetting, `DeliverEvent`). A
+card answers EvSpNEW until written, as after power-on, but `_bu_init`
+leaves both known: on DuckStation, LSD's first `_card_info` after boot
+gets no EvSpNEW (its `_card_clear` is never called, no "memory card was
+swapped" message). With EvSpNEW on the first access the port showed that
+message before the first SAVE or LOAD, which the console does not; now
+SAVE, LOAD and LOAD on an empty card ("no file on the memory card") look
+as on DuckStation.
+
+Windows: the i686 MinGW `lsd.exe` runs under Wine 11.18 (staging) inside
+`xvfb-run`, with a scratch prefix. Nothing in the port or psyz needed a
+fix. SDL_GPU picks Direct3D 12 (vkd3d); Xvfb gives it no swapchain, so
+presentation is off and the debug server's screenshots are the picture.
+It reaches the title menu, plays a dream with its music (-30.3 dB RMS,
+console -30.24 dB, in real time through SDL's disk audio driver), SAVEs,
+and LOADs the save after a restart. Two traps, both Wine's: a fresh
+prefix waits on the Mono/Gecko installer (`WINEDLLOVERRIDES=
+"mscoree,mshtml="`), and Wine does not pass `SDL_*` variables to Windows
+programs, so `SDL_AUDIO_DRIVER` has to be set in the prefix's
+`HKCU\Environment`. The release `lsd.exe` links MinGW's runtime
+statically; on Windows, startup errors also show in a message box, and
+`disc/` is also looked for beside the executable.
