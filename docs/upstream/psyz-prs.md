@@ -333,3 +333,35 @@ the next run fails `bu` and `truncation`. With these branches the
 fork's `main` passes 314 tests at x86_64 (2 skipped) and 315 at i686,
 where `gte::read_rot_matrix_reads_rotation_and_translation` still fails
 as before (it compares uninitialised padding).
+
+## `libcard-bu-init-path`: `_bu_init` makes the cards where they are mapped
+
+From the merge base of upstream `main` and the fork's (`afed8f3`).
+`_bu_init` made `bu00/` and `bu10/` in the working directory whatever a
+game's `Psyz_AdjustPathCB` said, so a game that keeps its cards
+elsewhere (LSD's port: the per-user folder) still left two empty
+directories where it was started. It now makes the directories
+`Psyz_AdjustPath` gives for `"bu00:"` and `"bu10:"` (the working
+directory without a callback, as before), and builds with MSVC
+(`_mkdir`). 1 test (`bu_init::creates_the_mapped_card_directories`).
+
+## `libcard-new-card`: SwCARD events delivered; a card is new until written
+
+Stacked on `libcard-bu-init-path` (both change `_bu_init`).
+`_card_info` and `_card_load` did nothing, and every SwCARD event
+answered from `OpenEvent` on as fixed (end of I/O, nothing else), so
+`EnableEvent`/`DisableEvent` were stubs and `TestEvent` never reset.
+Now the event calls follow the kernel's states (EvStWAIT after
+`OpenEvent`, EvStACTIVE when enabled, EvStALREADY once delivered;
+`TestEvent`/`WaitEvent` reset it; `DeliverEvent`, `UnDeliverEvent`
+written), and libcard delivers: `_card_info` answers EvSpNEW for a
+port's card until a `_card_write` to it (`_card_clear`), then EvSpIOE,
+and EvSpTIMOUT for a multi-tap slot; `_card_load` answers EvSpIOE.
+`_bu_init` leaves both cards known: on DuckStation, LSD's first
+`_card_info` after boot answers a known card (no `_card_clear` follows,
+no "card swapped" message), and with this the port matches it, as does
+LOAD on an empty card. HwCARD events, which nothing delivers yet, keep
+their fixed answers. A game that tests SwCARD events without enabling
+them, or without calling `_card_info`, now sees nothing, as on the
+console. 1 test (`card::info_reports_a_new_card_until_it_is_written`).
+The fork's `main` with both: 316 passed, 2 skipped at x86_64 (Debug).
