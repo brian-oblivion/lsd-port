@@ -62,6 +62,14 @@ Decided (2026-10-02), so not reopened without the operator:
   Windows), with the x86_64 build kept compiling in CI and its width
   warnings only going down; 64-bit clean stays under "Later"
   (docs/design.md has the measurements).
+- save files (2026-10-03): memory cards live in SDL's per-user folder
+  (`SDL_GetPrefPath`: `~/.local/share/<org>/lsd/` on Linux, `%APPDATA%`
+  on Windows), as `bu00/` and `bu10/` there, with an option (and an
+  environment variable) to put them somewhere else;
+- console reference (2026-10-03): DuckStation, run headless by
+  `tools/ds_drive.py`; differences task 05 left (psyz's 59.94 Hz NTSC
+  pacing, the port's instant loading, host-GPU rasterisation) are
+  accepted.
 
 Still open:
 
@@ -118,5 +126,18 @@ Still open:
 ### Later (not needed for "playable")
 
 - 64-bit clean, if track 2 chose 32-bit first.
-- Enhancements a port can have and the decomp cannot: resolution scaling,
-  widescreen, frame pacing, controller remapping, bug fixes behind options.
+- Enhancements a port can have and the decomp cannot, each behind an
+  option that defaults to the console's behaviour, with the decomp kept
+  byte-exact (`#ifdef PLATFORM_PC` hooks or psyz settings):
+  - `resolution`: internal resolution above 320x240 (psyz has an
+    `internal_resolution` setting; check the 2D screens and the movies).
+  - `widescreen` (requested): a wider 3D projection and wider screen
+    clip and culling, so objects at the new edges are drawn; the 2D
+    screens (menu, graph, movies) centred with side bars (or stretched,
+    as an option). psyz's aspect setting covers the display side.
+  - `high-fps` (requested): the game's logic advances once per frame at
+    20 fps (`VSync(3)`), and its timers count frames. Recommended: keep
+    the logic at 20 fps and draw extra frames by interpolating camera and
+    object transforms between ticks. Running the logic at 60 fps would
+    mean rescaling every frame-counted constant; not recommended.
+  - controller remapping, bug fixes behind options.
