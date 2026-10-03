@@ -294,9 +294,42 @@ reopens it with `FWRITE` wrote nothing. `FCREAT` now implies `FWRITE`, as
 `plat_win.c` has it, and creates through `open(2)`, still truncating as
 `creat()` did. 1 test (`bu::write_to_existing_file`).
 
+## `spu-end-mute-envx`: a voice that ends without repeat reads ENVX 0
+
+A block flagged loop-end without repeat stopped the voice but left its
+envelope, and so ENVX, at the level it had (usually the sustain level).
+The SPU mutes such a voice with ENVX at 0, and libsnd's voice allocator
+depends on it: a voice is freed only after ENVX has read 0 for 15
+ticks. With the stale level every one-shot sample kept its voice for
+good, and later notes found none: in LSD: Dream Emulator whole layers of
+the dream music were missing next to DuckStation. 1 test
+(`spu::AdpcmLoopEndWithoutRepeatZeroesEnvx`), which fails without the
+change.
+
+## `xa-zigzag`: XA resampled with the decoder's zigzag filter
+
+XA went from 37800Hz to 44100Hz through a 4-point Hermite interpolator,
+which keeps the decoded level. The CD decoder outputs seven samples for
+every six inputs, each through one of seven 29-tap zigzag tables
+(psx-spx, "CDROM XA Audio ADPCM Compression"), whose gain is about
+0.906. Against DuckStation, LSD's movies played 0.85dB louder, flat
+across the spectrum; with the tables the gain is within 0.07dB and the
+waveforms agree to -26..-37dB. `libcd_playback::xa_playback` now expects
+the filter's 7-sample cycle on its DC input instead of a flat level.
+18900Hz XA is still decoded as 37800Hz, as before.
+
+## `mdec-15bit-round`: the MDEC rounds its 15-bit output
+
+Stacked on `libpress-mdec`. `DecDCTout` at 15 bits truncated each 8-bit
+component to 5 bits; LSD's movies (15-bit) came out about half a step
+(~3.8/255) darker in every channel than DuckStation's. Rounding to
+nearest (saturating at 31) brings the mean difference to 0.15/255 or
+less. psx-spx does not say how the MDEC reduces to 15 bits; this is
+measured against DuckStation, not a console.
+
 The host tests run in a Debug build: the `bu` group's teardown deletes
 its files inside `assert()`, so a Release build leaves them behind and
-the next run fails `bu` and `truncation`. With these five branches the
-fork's `main` passes 313 tests at x86_64 (2 skipped) and 314 at i686,
+the next run fails `bu` and `truncation`. With these branches the
+fork's `main` passes 314 tests at x86_64 (2 skipped) and 315 at i686,
 where `gte::read_rot_matrix_reads_rotation_and_translation` still fails
 as before (it compares uninitialised padding).

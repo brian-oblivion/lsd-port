@@ -185,3 +185,67 @@ START still held when the dream begins pauses it at once.
 
 x86_64 still stops at boot, in `BMemPMgrAlloc` for `ETC\DREAME5.TMD`,
 as before.
+
+### Against the console (task 05)
+
+The reference is DuckStation (0.1-11752), run headless by
+`tools/ds_drive.py`: its own settings and data in a scratch directory,
+its own Xvfb, the OpenGL presenter (Vulkan cannot present on Xvfb), the
+software renderer, keys through xdotool, the media capture for audio
+(PCM, in emulated time) and the native 320x240 screenshot. The only BIOS
+installed is SCPH-1001 (US), which boots the Japanese disc with a region
+warning. Its GDB stub takes lsddecomp's `build/lsdde.elf` for symbols
+(SDK functions by address), but reports breakpoints late and slows
+emulation per hit, so it answers what was called, not when. The same
+moments were recorded on both: the title menu's tones, day 1's dream,
+the attract movie the menu times out into, the dream graph.
+`tools/snd_compare.py` holds the measurements.
+
+Sound, after the fixes (psyz fork `main`):
+
+| | console | port |
+|---|---|---|
+| menu tones: pitch, harmonics, decay | 51.7 Hz sweep | same |
+| menu timeout (last press to fade) | 10.11 s | 10.07 s |
+| dream music RMS | -30.24 dB | -30.20 dB |
+| dream music pitch | | ratio 1.0000 |
+| dream SEQ loop | 8.043 s | 8.006-8.017 s |
+| XA movie gain, pitch, tempo | | -0.07 dB, 1.0000, 1.00000 |
+| stereo balance (music and XA) | | equal to 0.01 dB |
+
+What it took:
+
+1. Whole layers of the dream music were missing: psyz left ENVX at its
+   level when a one-shot sample ended, and libsnd frees a voice only after
+   ENVX reads 0, so voices filled up and later notes were dropped (psyz
+   `spu-end-mute-envx`).
+2. XA played 0.85 dB louder, flat across the spectrum: the console's
+   decoder resamples through zigzag tables whose gain is 0.906, psyz
+   through a unity Hermite interpolator (psyz `xa-zigzag`). The waveforms
+   now agree to -26..-37 dB.
+3. Movie frames were ~3.8/255 darker in every channel: psyz's MDEC
+   truncated its 15-bit output, which DuckStation rounds (psyz
+   `mdec-15bit-round`; now within 0.15/255).
+
+Still different:
+
+- The port's SEQ runs ~0.3-0.4% fast: psyz paces NTSC at 59.94 Hz, a
+  240p PS1 at 53.693175 MHz / (263 x 3413) = 59.826 Hz. Inaudible, but
+  it is every psyz game's pacing, so it is the operator's (and upstream's)
+  call.
+- In the first ~6 s of a dream the console's mix drops to digital
+  silence for 30-140 ms three times, at the same places in every run and
+  never later; the port, which loads instantly, does not. No mute call is
+  made on the port there; the console side was not traced to a cause.
+- Loading: the console shows the title menu ~2 s after
+  `GameApplication__RunTitleMenu` and starts the dream's music ~4.8 s
+  after START; the port takes under 1 s for both.
+
+Picture: the title menu is identical at 5 bits per channel (the 8-bit
+values differ by 1 where psyz expands 5 to 8 bits by rounding and
+DuckStation by bit replication). The first dream room has the same
+textures, dithering, fog and light; 31% of pixels differ, by one 5-bit
+step in the shading or by about a texel at edges and in the window's
+texture, since psyz rasterises on the host GPU. The dream graph after
+day 1 has the same layout and the same point. Movie frames match by eye;
+their levels, before the MDEC fix, did not (above).
