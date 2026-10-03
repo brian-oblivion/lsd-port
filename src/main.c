@@ -7,12 +7,28 @@
 
 #include <psyz.h>
 #include <SDL3/SDL_filesystem.h>
+#include <SDL3/SDL_messagebox.h>
 #include <SDL3/SDL_stdinc.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 void lsd_game_main(void);
+
+// Says why lsd cannot start, on stderr and, on Windows, where a game is
+// usually started from Explorer and the console closes with it, in a box.
+static void StartError(const char* fmt, ...) {
+    char msg[512];
+    va_list args;
+    va_start(args, fmt);
+    SDL_vsnprintf(msg, sizeof(msg), fmt, args);
+    va_end(args);
+    fprintf(stderr, "lsd: %s\n", msg);
+#ifdef _WIN32
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "LSD: Dream Emulator", msg, NULL);
+#endif
+}
 
 // --frames N: exit after N VSyncs, for smoke tests; 0 runs forever.
 static int sFrameLimit;
@@ -56,13 +72,12 @@ static int SetUpSaves(const char* dir) {
     } else {
         sSavesDir = SDL_GetPrefPath("lsd-port", "lsd");
         if (sSavesDir == NULL) {
-            fprintf(stderr, "lsd: no per-user folder for saves (%s); pass --saves DIR\n",
-                    SDL_GetError());
+            StartError("no per-user folder for saves (%s); pass --saves DIR", SDL_GetError());
             return -1;
         }
     }
     if (!SDL_CreateDirectory(sSavesDir)) {
-        fprintf(stderr, "lsd: cannot make the saves folder %s: %s\n", sSavesDir, SDL_GetError());
+        StartError("cannot make the saves folder %s: %s", sSavesDir, SDL_GetError());
         return -1;
     }
 
@@ -84,19 +99,33 @@ static int SetUpSaves(const char* dir) {
     return 0;
 }
 
-// The disc image when neither --disc nor LSD_DISC names one: the only .cue
-// in disc/ under the working directory (README, "The game"). NULL when there
-// is none, or more than one to choose from.
-static char* FindDefaultDisc(void) {
+// The only .cue in `dir`/disc/, as a path; NULL when there is none, or more
+// than one to choose from (and then says so).
+static char* FindDiscIn(const char* dir) {
+    char* discDir;
+    SDL_asprintf(&discDir, "%sdisc", dir);
     int count = 0;
-    char** cues = SDL_GlobDirectory("disc", "*.cue", SDL_GLOB_CASEINSENSITIVE, &count);
+    char** cues = SDL_GlobDirectory(discDir, "*.cue", SDL_GLOB_CASEINSENSITIVE, &count);
     char* path = NULL;
     if (cues != NULL && count == 1) {
-        SDL_asprintf(&path, "disc/%s", cues[0]);
+        SDL_asprintf(&path, "%s/%s", discDir, cues[0]);
     } else if (count > 1) {
-        fprintf(stderr, "lsd: %d .cue files in disc/; pass --disc to pick one\n", count);
+        StartError("%d .cue files in %s; pass --disc to pick one", count, discDir);
     }
     SDL_free(cues);
+    SDL_free(discDir);
+    return path;
+}
+
+// The disc image when neither --disc nor LSD_DISC names one: the only .cue
+// in disc/ under the working directory, else in disc/ beside lsd itself
+// (README, "The game").
+static char* FindDefaultDisc(void) {
+    char* path = FindDiscIn("");
+    const char* base = SDL_GetBasePath();
+    if (path == NULL && base != NULL) {
+        path = FindDiscIn(base);
+    }
     return path;
 }
 
@@ -118,11 +147,11 @@ int main(int argc, char** argv) {
         disc = FindDefaultDisc();
     }
     if (disc == NULL) {
-        fprintf(stderr, "lsd: no disc image; put it in disc/ or pass --disc path/to/game.cue\n");
+        StartError("no disc image; put it in disc/ or pass --disc path/to/game.cue");
         return 2;
     }
     if (Psyz_CdSetDiskPath(disc) != 0) {
-        fprintf(stderr, "lsd: cannot read the disc image %s\n", disc);
+        StartError("cannot read the disc image %s", disc);
         return 2;
     }
     if (SetUpSaves(saves) != 0) {

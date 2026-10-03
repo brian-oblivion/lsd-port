@@ -60,4 +60,9 @@ set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
 
 add_executable(lsd src/main.c)
 target_link_libraries(lsd PRIVATE lsd_game psyz)
+# MinGW: link its runtime (libgcc, winpthreads) in, so lsd.exe runs without
+# the toolchain's DLLs beside it.
+if(MINGW)
+    target_link_options(lsd PRIVATE -static)
+endif()
 psyz_title(lsd "LSD: Dream Emulator")
