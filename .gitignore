@@ -7,3 +7,6 @@ disk/
 disc/
 build/
 build-*/
+# memory card files psyz writes in the working directory
+/bu00/
+/bu10/

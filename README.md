@@ -5,17 +5,21 @@ OutSide Directors Company), built from the matching decompilation
 [lsddecomp](https://github.com/brian-oblivion/lsddecomp). Linux comes first;
 the code is kept portable so Windows (and others) can follow.
 
-> **Work in progress: not playable yet.** There is no release to download,
-> and a build does not get you a game: it reaches the title menu, but
-> movies, 3D and sound are still missing. Follow along, but don't expect to
+> **Work in progress: not playable yet.** There is no release to download.
+> A build plays the intro movies, the title menu and the day's dream, with
+> its music, and saves and loads; it has not been played through, and
+> only the 32-bit build gets that far. Follow along, but don't expect to
 > play it.
 
 **Status:** the game's C compiles and links against the platform layer,
 [psyz](https://github.com/Xeeynamo/psyz) (through the fork
-[lsd-psyz](https://github.com/brian-oblivion/lsd-psyz)). With the real disc
-it plays its intro logos and reaches the title menu. Much of the SDK is
-still stubbed (`src/stubs.c`, `docs/research/host-link-surface.md`). See
-[docs/PLAN.md](docs/PLAN.md) for the tracks to a playable build.
+[lsd-psyz](https://github.com/brian-oblivion/lsd-psyz)), with no
+stand-ins left. With the real disc, the i686 build plays the intro, the
+title menu, a day's dream with its music and links to other stages, the
+dream graph, SAVE, LOAD, FLASHBACK and the special-day movies
+(`docs/research/host-link-surface.md` has the stops on the way). Memory
+card files go to `bu00/` and `bu10/` in the working directory for now.
+See [docs/PLAN.md](docs/PLAN.md) for the tracks to a playable build.
 
 ## The game
 

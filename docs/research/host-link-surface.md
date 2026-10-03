@@ -4,26 +4,20 @@ What the linker reports missing when the game's C (lsddecomp `3127186d5`)
 links against psyz (fork `main` `8030744`) on Linux x86_64; i686 and
 MinGW report the same list. It replaces the regex estimate in
 `psyz-coverage-2026-10-02.md` as the platform layer's to-do list. Each
-symbol here has a temporary stand-in in `src/stubs.c`; deleting a stand-in
-shows whether psyz now provides it.
+symbol had a temporary stand-in in `src/stubs.c` until psyz provided it;
+task 04 removed the last ones, and the file with them.
 
-To reproduce: remove `src/stubs.c` from the `lsd` target and build; the
-undefined references are this list.
+## SDK functions psyz lacks (0)
 
-## SDK functions psyz lacks (5)
-
-The game links against psyz's headers; none of these has a body in psyz's
-PC build. Of the first count's 38, task 02 did eight: `GsInit3D`,
+The game links against psyz's headers; none of these had a body in
+psyz's PC build. Of the first count's 38, task 02 did eight: `GsInit3D`,
 `GsGetTimInfo`, `GsSortBg`, `GsSortBoxFill`, `GsSortSprite` (psyz branch
 `libgs-2d`), `SsUtGetVabHdr` (`libsnd-vabhdr`), `StClearRing` and
 `StUnSetRing` (`libcd-stream`). Task 03 did 25: the 13 libgs 3D calls
 (`libgs-3d`), `ApplyMatrixLV`, `ApplyMatrixSV`, `MulMatrix2` and `Square0`
-(`libgte-matrix`), and the eight `RCpoly*` (`libgte-rcpoly`).
-
-| library | functions |
-| --- | --- |
-| libsnd (4) | `SsSeqPause`, `SsSeqReplay`, `SsSetMute`, `SsUtAutoVol` |
-| libapi (1) | `SetMem` |
+(`libgte-matrix`), and the eight `RCpoly*` (`libgte-rcpoly`). Task 04 did
+the last five: `SsSeqPause`, `SsSeqReplay`, `SsSetMute` and `SsUtAutoVol`
+(`libsnd-seq`), and `SetMem` (`libapi-setmem`).
 
 ## Linked, but only as psyz stubs
 
@@ -34,10 +28,14 @@ libpress (`DecDCTReset`, `DecDCTin`, `DecDCTout`, `DecDCToutCallback`,
 `DecDCTvlc`) are implemented now (branches `libcd-stream`,
 `libpress-mdec`), and so is libgte's `SetFogNear` (`libgte-fog`).
 
-- libsnd: `SsSeqOpen`
+- libsnd: `_SsSndTempo` (accelerando and ritardando; the game uses
+  neither). `SsSeqOpen` and the rest of the sequencer are implemented now
+  (`libsnd-seq`).
 - libapi: `EnterCriticalSection`, `ExitCriticalSection` (psyz's
   `PS1_` names), `EnableEvent`, `DisableEvent` (partly)
-- libcard: `_bu_init`, `_card_info`, `_card_load` (partly)
+- libcard: `_card_info`, `_card_load` (partly: they log "not implemented"
+  and answer as a formatted card that is always there, which is enough
+  for SAVE and LOAD)
 
 ## The game's own data that was not in its C (37 + 18)
 
@@ -104,9 +102,9 @@ What it took, in boot order:
    primitive at the next `DrawSync` (`gpu-32bit-flush`; on upstream
    `main` 37 GPU host tests fail at i686).
 
-Sound is unverified: SDL loads the audio libraries at run time, and on
-this machine the 32-bit ALSA library (`lib32-alsa-lib`) is not
-installed, so the SPU and XA output went nowhere.
+Sound was unverified then: SDL loads the audio libraries at run time, and
+the 32-bit ALSA library (`lib32-alsa-lib`) was not installed. Task 04
+checked it headless instead (below).
 
 ### Into the dream (task 03)
 
@@ -142,3 +140,48 @@ too.
 x86_64 stops earlier, in `BMemPMgrAlloc` called from
 `LinkResource__BuildModels` for `ETC\DREAME5.TMD`: the heap and the
 hand-sized layouts `docs/design.md` lists for 64-bit.
+
+### A whole day (task 04)
+
+The i686 build now plays a whole day: the dream with its
+music, links into other stages, the end of the day, the dream graph and
+the title menu at the next day; SAVE, and LOAD after a restart, which
+brings the day back; FLASHBACK; the graph scoring and the special-day
+movie that follows. Sound was checked headless, through SDL's `disk`
+audio driver (`SDL_AUDIO_DRIVER=disk`, raw S16LE stereo at 44.1 kHz in
+`SDL_AUDIO_DISK_OUTPUT_FILE`): the movies' XA audio and the dream's SEQ
+music are there; nobody has listened to them yet. What it took, in
+order (all psyz; lsddecomp is unchanged):
+
+1. The dream's music was not played: psyz had no SEQ sequencer
+   (`SsSeqOpen`, the tick, the MIDI events) and its voice allocator
+   always failed, so not even `SsUtKeyOn` could sound. lsddecomp carries
+   libsnd 3.3's sequencer as C, but the port compiles none of `src/psyq/`,
+   23 of its functions are still assembly there, and its score record is
+   not psyz's. psyz `libsnd-seq` writes the missing 4.x functions from
+   that C and Sony's 3.3 code, over psyz's own records; it also has the
+   four libsnd calls `src/stubs.c` stood in for.
+2. Starting a day crashed in `_SsTrapIntrVSync`, calling itself: psyz's
+   `InterruptCallback` could not remove a handler, so the title menu's
+   `SsEnd` left the sequencer's installed and the dream's `SsStart` chained
+   to it (`libetc-interrupt-callback`).
+3. Seen on the way: psyz's `_SsVmKeyOnNow` swapped left and right for
+   panned notes (`libsnd-keyonnow-pan`), and `SetMem` had no body
+   (`libapi-setmem`). With that, `src/stubs.c` was empty and is gone.
+4. SAVE wrote an empty file: psyz's Unix `open()` opened everything
+   without `FCREAT` read-only, and the game writes its save after
+   reopening it with `FWRITE` (`kernel-open-flags`).
+
+FLASHBACK needs a save past the unlock score with a flashback stored; the
+test edited the score into a save made after six days, as it edited the
+four moods the graph scores into one. Memory card files are `bu00/` and
+`bu10/` in the working directory, psyz's default.
+
+Three days walked with scripted input (forward, with random turns) ran
+to their own time-up, through links into other stages, without a crash:
+184, 33 and 79 seconds, as each day set its limit. Headless runs note:
+START in a dream is the pause, which mutes the SPU (`SsSetMute`); a
+START still held when the dream begins pauses it at once.
+
+x86_64 still stops at boot, in `BMemPMgrAlloc` for `ETC\DREAME5.TMD`,
+as before.

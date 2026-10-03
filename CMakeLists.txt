@@ -58,7 +58,6 @@ target_compile_options(lsd_game PRIVATE
 set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
     COMPILE_DEFINITIONS main=lsd_game_main)
 
-# src/stubs.c: temporary stand-ins for what psyz and lsddecomp lack yet.
-add_executable(lsd src/main.c src/stubs.c)
+add_executable(lsd src/main.c)
 target_link_libraries(lsd PRIVATE lsd_game psyz)
 psyz_title(lsd "LSD: Dream Emulator")

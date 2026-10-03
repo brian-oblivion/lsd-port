@@ -224,3 +224,79 @@ Sony's `inline_c.h` has `gte_stflg` (the whole FLAG) and `gte_stflg_4`
 (bit 18 alone, SZ3/OTZ saturated). psyz had only the first; added for
 the C host macros and the PS1 inline-asm block (**unbuilt** on PS1). One
 test.
+
+## `libsnd-seq`: the SEQ sequencer and the voice manager's key-on paths
+
+`SsSeqOpen`, the per-tick player and every MIDI event handler were
+stand-ins, and so was `_SsVmAlloc`, which returned -1: no SEQ played and
+`SsUtKeyOn` never found a voice. Host C for them, under `__psyz` beside
+each file's `INCLUDE_ASM`, as the decompiled files already do:
+
+- the voice manager: `vm_aloc1`, `vm_key`, `vm_seq`, `vm_vol`, `vm_prog`,
+  `vm_pb`, `vm_no1`, `vm_no2`, `vm_noise`, `vm_autov`, `vm_don` and
+  `SeAutoPan`;
+- the sequencer: `seqinit`, `ssopenq`, `ssopenqj` (SsSeqOpen and the SEQ
+  header), `midiread` (the tick and the event decoder, through
+  `SsFCALL`), `midinote`, `midiprog`, `midibend`, `midimeta` (tempo, end
+  of track), `midicc` and `cc_*` (the controllers, loops and the mark
+  callback), `de_*` and `ccadsr` (the data entry's VAB attributes),
+  `next`;
+- the calls around them: `sspause`, `ssreplay`, `ssdecres`, `sssm`,
+  `ssmark`, `ut_autov`, `ut_rfb`, `ut_sva`, and libspu's `SpuSetMute`.
+
+Written from libsnd **3.3**, the build LSD: Dream Emulator links (its
+decompilation carries most of it as C; the rest was read from the
+game's code and Sony's 3.3 objects), and laid over this library's 4.x
+`SeqStruct`, whose fields it names in comments: much of the 3.3 record
+is the 4.x one 8 bytes lower. **Not checked against 4.7.** 3.3's own
+quirks are kept where its code has them (`_SsVmSetVol` reads the tone's
+volume at the voice's tone index alone; `vmNoiseOn` reads a score for
+sound effects too, which here takes full volume instead of reading past
+`_ss_score`). `_SsSndTempo` (accelerando, ritardando) stays a stand-in.
+
+Checked in LSD: Dream Emulator: the dream's SEQ opens, plays and loops at
+its end of track, recorded through SDL's `disk` audio driver (not yet
+listened to). No new tests: the sequencer needs a SEQ and a VAB.
+
+## `libetc-interrupt-callback`: InterruptCallback by interrupt number
+
+`InterruptCallback` bound its handler to the counter `SetRCnt` last
+programmed, and only a non-NULL one. `SsEnd` puts back the VBLANK
+handler `SsStart` replaced, usually NULL, so the sequencer's stayed
+installed; the next `SsStart` saved it as the handler to chain to, and
+`_SsTrapIntrVSync` called itself until the stack ran out. A game that
+closes its last VAB and later opens another crashed there (LSD: Dream
+Emulator, starting a day). Interrupt 0 (VBLANK, which RCntCNT3 counts)
+and 6 (root counter 2) now have their own slots and NULL empties one;
+other numbers keep the old binding. `libetc.h` declares
+`InterruptCallback`, which `ssstart.c` called undeclared, taking its
+pointer result as an int. 4 tests (`interrupt_callback`, host only).
+
+## `libsnd-keyonnow-pan`: _SsVmKeyOnNow pans the right way
+
+The host `_SsVmKeyOnNow` set the left level from the right one for a pan
+below 64 and the right from the left above it: every panned key-on came
+out on the wrong side, at the other side's level. Sony's code (3.3's
+`SpuVmKeyOnNow`, and `SetAutoPan` here) scales the right channel down
+for a pan below 64 and the left above it, each from itself.
+
+## `libapi-setmem`: SetMem
+
+Games set the RAM size at boot (`SetMem(2)`); it had no definition. The
+host has no such limit, so it does nothing.
+
+## `kernel-open-flags`: open() on Unix sets the access mode
+
+`psyz_open` (`plat_unix.c`) put `O_RDWR`/`O_RDONLY`/`O_WRONLY` into the
+PS1 flag instead of the `open(2)` flags, so every file it opened without
+`FCREAT` was read-only: a game that creates its save, closes it and
+reopens it with `FWRITE` wrote nothing. `FCREAT` now implies `FWRITE`, as
+`plat_win.c` has it, and creates through `open(2)`, still truncating as
+`creat()` did. 1 test (`bu::write_to_existing_file`).
+
+The host tests run in a Debug build: the `bu` group's teardown deletes
+its files inside `assert()`, so a Release build leaves them behind and
+the next run fails `bu` and `truncation`. With these five branches the
+fork's `main` passes 313 tests at x86_64 (2 skipped) and 314 at i686,
+where `gte::read_rot_matrix_reads_rotation_and_translation` still fails
+as before (it compares uninitialised padding).
