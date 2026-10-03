@@ -9,7 +9,9 @@ press buttons, take screenshots, change the pacing, wait for log lines.
     r.stop()
 
 Everything a run writes (log, raw audio, screenshots, memory card files)
-goes to `out`, never the repository. The window never opens: SDL renders
+goes to `out`, never the repository or the real per-user folder: the
+default saves folder is `out/xdg-data/lsd-port/lsd/` unless `saves` (or
+LSD_SAVES in `env`) says otherwise. The window never opens: SDL renders
 offscreen and plays audio into a raw file (S16LE stereo, 44.1 kHz) through
 its `disk` driver. See docs/tasks/05-*.md for the pitfalls.
 """
@@ -25,7 +27,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class Run:
     def __init__(self, tag, port, out, binary='build-i686/lsd', disc=None,
-                 gdb_script=None, vsync='off', env=None):
+                 gdb_script=None, vsync='off', env=None, saves=None):
         self.tag, self.port, self.out = tag, port, out
         os.makedirs(out, exist_ok=True)
         self.log = os.path.join(out, tag + '.log')
@@ -35,15 +37,20 @@ class Run:
         e.pop('WAYLAND_DISPLAY', None)
         e.update(SDL_VIDEO_DRIVER='offscreen', SDL_AUDIO_DRIVER='disk',
                  SDL_AUDIO_DISK_OUTPUT_FILE=self.raw, LSD_VSYNC=vsync,
-                 LSD_DEBUG_PORT=str(port))
+                 LSD_DEBUG_PORT=str(port),
+                 # the default saves folder (SDL's per-user one), kept in `out`
+                 XDG_DATA_HOME=os.path.join(out, 'xdg-data'))
         e.update(env or {})
         if disc is None:
             cues = [f for f in os.listdir(os.path.join(REPO, 'disc')) if f.lower().endswith('.cue')]
             disc = os.path.join(REPO, 'disc', cues[0])
         cmd = [os.path.join(REPO, binary), '--disc', disc]
+        if saves:
+            cmd += ['--saves', saves]
         if gdb_script:
             cmd = ['gdb', '-q', '-batch', '-x', gdb_script, '--args'] + cmd
-        # The working directory is `out`: psyz puts bu00/ and bu10/ there.
+        # The working directory is `out`, where builds before task 06 put
+        # bu00/ and bu10/.
         self.proc = subprocess.Popen(cmd, cwd=out, env=e, stdout=open(self.log, 'w'),
                                      stderr=subprocess.STDOUT, start_new_session=True)
         self.wait_log('debug server on', timeout=120)

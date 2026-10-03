@@ -2,7 +2,7 @@
 // psyz offers, then runs the game's main (decomp/src/main.c, compiled with
 // main renamed to lsd_game_main), which never returns.
 //
-// Exit codes: 2 when there is no usable disc image; otherwise the game's
+// Exit codes: 2 when there is no usable disc image or saves folder; otherwise the game's
 // (0 after --frames N).
 
 #include <psyz.h>
@@ -28,6 +28,62 @@ static void CountFrame(void) {
     }
 }
 
+// --saves DIR (or LSD_SAVES): where the memory cards live, as bu00/ and
+// bu10/ (psyz's "bu00:" and "bu10:"). By default SDL's per-user folder:
+// ~/.local/share/lsd-port/lsd/ on Linux, %APPDATA%\lsd-port\lsd\ on Windows.
+static char* sSavesDir;
+
+// Psyz_AdjustPathCB: "buXY:NAME" becomes <saves>/buXY/NAME, and "buXY:" or
+// "buXY:*" (a card's directory) <saves>/buXY/.
+static int AdjustCardPath(char* dst, const char* src, int maxlen) {
+    if (strncmp(src, "bu", 2) != 0 || strlen(src) < 5 || src[4] != ':') {
+        return -1;
+    }
+    const char* name = src + 5;
+    if (strcmp(name, "*") == 0) {
+        name = "";
+    }
+    return SDL_snprintf(dst, maxlen, "%s%.4s/%s", sSavesDir, src, name);
+}
+
+// Picks the saves folder, creates it, and routes psyz's card paths there.
+// Returns 0, or -1 when the folder cannot be made.
+static int SetUpSaves(const char* dir) {
+    if (dir != NULL && *dir != '\0') {
+        size_t len = strlen(dir);
+        int hasSep = len > 0 && (dir[len - 1] == '/' || dir[len - 1] == '\\');
+        SDL_asprintf(&sSavesDir, "%s%s", dir, hasSep ? "" : "/");
+    } else {
+        sSavesDir = SDL_GetPrefPath("lsd-port", "lsd");
+        if (sSavesDir == NULL) {
+            fprintf(stderr, "lsd: no per-user folder for saves (%s); pass --saves DIR\n",
+                    SDL_GetError());
+            return -1;
+        }
+    }
+    if (!SDL_CreateDirectory(sSavesDir)) {
+        fprintf(stderr, "lsd: cannot make the saves folder %s: %s\n", sSavesDir, SDL_GetError());
+        return -1;
+    }
+
+    // Builds before this one kept the cards in the working directory. Say so
+    // rather than moving them (README, "Saves").
+    char* card;
+    SDL_asprintf(&card, "%sbu00", sSavesDir);
+    SDL_PathInfo info;
+    if (SDL_GetPathInfo("bu00", &info) && info.type == SDL_PATHTYPE_DIRECTORY &&
+        !SDL_GetPathInfo(card, NULL)) {
+        fprintf(stderr,
+                "lsd: bu00/ here holds memory cards from an older build; saves now go to %s"
+                " (move bu00/ and bu10/ there to keep them)\n",
+                sSavesDir);
+    }
+    SDL_free(card);
+
+    Psyz_AdjustPathCB(AdjustCardPath);
+    return 0;
+}
+
 // The disc image when neither --disc nor LSD_DISC names one: the only .cue
 // in disc/ under the working directory (README, "The game"). NULL when there
 // is none, or more than one to choose from.
@@ -48,11 +104,14 @@ int main(int argc, char** argv) {
     // --disc FILE.cue (or LSD_DISC): the user's disc image, which psyz's
     // libcd reads. The game needs it from its first file on.
     const char* disc = getenv("LSD_DISC");
+    const char* saves = getenv("LSD_SAVES");
     for (int i = 1; i < argc - 1; i++) {
         if (strcmp(argv[i], "--frames") == 0) {
             sFrameLimit = atoi(argv[i + 1]);
         } else if (strcmp(argv[i], "--disc") == 0) {
             disc = argv[i + 1];
+        } else if (strcmp(argv[i], "--saves") == 0) {
+            saves = argv[i + 1];
         }
     }
     if (disc == NULL) {
@@ -64,6 +123,9 @@ int main(int argc, char** argv) {
     }
     if (Psyz_CdSetDiskPath(disc) != 0) {
         fprintf(stderr, "lsd: cannot read the disc image %s\n", disc);
+        return 2;
+    }
+    if (SetUpSaves(saves) != 0) {
         return 2;
     }
     if (sFrameLimit > 0) {
