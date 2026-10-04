@@ -464,3 +464,19 @@ captures of the intro movies, menu, dream, pause and links, at 1x and
 squeeze on and a 1280x720 display. The default (no `--aspect`) runs the
 same code as before: the scale is 0x10000 (the multiply is skipped),
 the stretch 1 and the window 1280x960.
+
+Scaling (same branch): psyz's present step had one nearest-neighbour blit
+to the window, so at a window that is not a whole multiple of the
+display (the operator's 1468x1102, about 4.6x) some framebuffer pixels
+come out a column or row wider than others; the menu's 8-pixel text shows
+it most. `Psyz_VideoSetScaleMode`: NEAREST (as before), SHARP (blit with
+nearest to the smallest whole multiple at least the window's size, then
+bilinear to the window: even pixels, one blended pixel at most between
+them), SMOOTH (bilinear) and INTEGER (the largest whole multiples that
+fit, the horizontal one nearest the aspect for each vertical one: the
+16:9 dream at 1468x1102 is 4x3 = 1280x720, the 4:3 menu 4x4). Both SDL3
+backends; the debug server's `/config?scale=` switches it live. Checked
+in Xvfb with the GL build only (no software Vulkan here, so the SDL_GPU
+backend's present was not captured). `settings.ini` in the saves folder
+holds aspect, resolution and scale (default `sharp`), under the command
+line and environment; `src/ini.c` is the reader `controls.ini` uses too.

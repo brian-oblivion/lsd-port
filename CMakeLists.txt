@@ -59,7 +59,7 @@ target_compile_options(lsd_game PRIVATE
 set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
     COMPILE_DEFINITIONS main=lsd_game_main)
 
-add_executable(lsd src/main.c src/controls.c)
+add_executable(lsd src/main.c src/controls.c src/ini.c src/settings.c)
 target_link_libraries(lsd PRIVATE lsd_game psyz)
 
 # LSD_SANITIZE: GCC sanitizers for the game's C, for example "address,bounds".

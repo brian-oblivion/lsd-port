@@ -119,19 +119,28 @@ Escape quits only when no button uses it.
 
 ## Picture
 
-By default the picture is the console's: 4:3, 320x240. Two options change
-that (command line or environment, as in the table under "Running a
-release"):
+The picture settings live in `settings.ini` in the saves folder, beside
+`controls.ini`, written with the defaults and explained on first start.
+The command line and the environment win over it (the table under
+"Running a release").
 
-- `--aspect 16:9` (`LSD_ASPECT=16:9`): widescreen. The dream shows more
-  of the world at the sides instead of stretching the 4:3 picture, and
-  the window opens at 16:9. The title menu, the graph, the diary and the
-  movies stay 4:3, with black bars at the sides. Any `W:H` wider than 4:3
-  works (`21:9`, `16:10`). The pause text and other 2D drawn over the
-  dream are stretched to the wider screen; fades fill it.
-- `--resolution N` (`LSD_RESOLUTION=N`): the 3D drawn at N times
-  320x240, 1 to 8, for sharper edges. 2D images and movies keep their
-  pixels.
+- `aspect = 4:3` (`--aspect`, `LSD_ASPECT`): the dream's width:height.
+  4:3 is the console's; `16:9` (or any wider `W:H`) shows more of the
+  dream at the sides instead of stretching the picture, and the window
+  opens at that shape. The title menu, the graph, the diary and the
+  movies stay 4:3 with black bars at the sides. The pause text and other
+  2D drawn over the dream are stretched to the wider screen; fades fill
+  it.
+- `resolution = 1` (`--resolution`, `LSD_RESOLUTION`): the 3D drawn at N
+  times 320x240, 1 to 8, for sharper edges. 2D images and movies keep
+  their pixels.
+- `scale = sharp` (`--scale`, `LSD_SCALE`): how the picture is scaled to
+  the window. `sharp` keeps every pixel the same size and crisp at any
+  window size (blending only at the pixel edges); `nearest` is crisp but,
+  at window sizes that are not a whole multiple of 320x240, makes some
+  pixels a column or row wider than others (most visible in the menu
+  text); `smooth` blurs; `integer` uses whole multiples only, with a
+  black border.
 
 ## Running a release
 
@@ -162,8 +171,9 @@ Options, all optional:
 | --- | --- | --- |
 | `--disc FILE.cue` | `LSD_DISC` | the disc image (default: `disc/`, above) |
 | `--saves DIR` | `LSD_SAVES` | where the memory cards live (above) |
-| `--aspect W:H` | `LSD_ASPECT` | the dream's aspect ratio, `4:3` (the console's, default) or wider, such as `16:9` ("Picture") |
+| `--aspect W:H` | `LSD_ASPECT` | the dream's aspect ratio, `4:3` (default) or wider, such as `16:9` ("Picture") |
 | `--resolution N` | `LSD_RESOLUTION` | the 3D drawn at N times 320x240, 1 (default) to 8 ("Picture") |
+| `--scale MODE` | `LSD_SCALE` | `sharp` (default), `nearest`, `smooth` or `integer` ("Picture") |
 | `--frames N` | | exit after N frames (for tests) |
 | | `LSD_VSYNC` | frame pacing: `auto`, `on` (the display's VSync), `off` (psyz's own limiter), `limitless` |
 | | `LSD_DEBUG_PORT` | psyz's debug server on 127.0.0.1 at that port (screenshots, input) |

@@ -11,6 +11,7 @@
 // stand for a key's place on a US keyboard, not the letter printed on it.
 
 #include "controls.h"
+#include "ini.h"
 
 #include <psyz.h>
 #include <libetc.h>
@@ -18,7 +19,6 @@
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_stdinc.h>
 #include <stdio.h>
-#include <string.h>
 
 #define MAX_KEYS_PER_BUTTON 4
 
@@ -116,37 +116,9 @@ static void WriteDefaults(const char* path) {
     SDL_CloseIO(io);
 }
 
-static char* Trim(char* s) {
-    while (*s == ' ' || *s == '\t') {
-        s++;
-    }
-    char* end = s + strlen(s);
-    while (end > s && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r')) {
-        *--end = '\0';
-    }
-    return s;
-}
-
-// Applies one line to `keys`. Returns 0, or -1 (and says why) when it means
-// nothing.
-static int ApplyLine(Layout* keys, char* line, const char* path, int lineNo) {
-    char* hash = strchr(line, '#');
-    if (hash != NULL) {
-        *hash = '\0';
-    }
-    line = Trim(line);
-    if (*line == '\0') {
-        return 0;
-    }
-    char* eq = strchr(line, '=');
-    if (eq == NULL) {
-        fprintf(stderr, "lsd: %s:%d: expected name = value\n", path, lineNo);
-        return -1;
-    }
-    *eq = '\0';
-    char* name = Trim(line);
-    char* value = Trim(eq + 1);
-
+// Applies one setting to the Layout ctx (IniApplyFn).
+static int ApplySetting(void* ctx, const char* name, char* value, const char* path, int lineNo) {
+    Layout* keys = ctx;
     if (SDL_strcasecmp(name, "layout") == 0) {
         for (int i = 0; i < LAYOUT_COUNT; i++) {
             if (SDL_strcasecmp(value, sLayouts[i].name) == 0) {
@@ -166,7 +138,7 @@ static int ApplyLine(Layout* keys, char* line, const char* path, int lineNo) {
         char* save = NULL;
         for (char* tok = SDL_strtok_r(value, ",", &save); tok != NULL;
              tok = SDL_strtok_r(NULL, ",", &save)) {
-            tok = Trim(tok);
+            tok = Ini_Trim(tok);
             if (*tok == '\0') {
                 continue;
             }
@@ -195,22 +167,9 @@ void SetUpControls(const char* savesDir) {
     Layout keys;
     SDL_memcpy(&keys, sLayouts[0].keys, sizeof(keys));
 
-    size_t size;
-    char* text = SDL_LoadFile(path, &size);
-    if (text == NULL) {
+    // A line that means nothing is reported and skipped; the rest apply.
+    if (Ini_Read(path, ApplySetting, &keys) != 0) {
         WriteDefaults(path);
-    } else {
-        // A line that means nothing is reported and skipped; the rest apply.
-        int lineNo = 0;
-        char* save = NULL;
-        for (char* line = text; line != NULL; line = save) {
-            save = strchr(line, '\n');
-            if (save != NULL) {
-                *save++ = '\0';
-            }
-            ApplyLine(&keys, line, path, ++lineNo);
-        }
-        SDL_free(text);
     }
 
     PsyzKeyBinding map[BUTTON_COUNT * MAX_KEYS_PER_BUTTON];

@@ -6,7 +6,7 @@
 // (0 after --frames N).
 
 #include "controls.h"
-#include "widescreen.h"
+#include "settings.h"
 
 #include <psyz.h>
 #include <SDL3/SDL_filesystem.h>
@@ -137,12 +137,12 @@ int main(int argc, char** argv) {
     // libcd reads. The game needs it from its first file on.
     const char* disc = getenv("LSD_DISC");
     const char* saves = getenv("LSD_SAVES");
-    // --aspect W:H (or LSD_ASPECT): the dream's aspect ratio, 4:3 by
-    // default; 16:9 shows more of it at the sides (src/widescreen.c).
+    // --aspect W:H, --resolution N, --scale MODE (or LSD_ASPECT,
+    // LSD_RESOLUTION, LSD_SCALE): the picture, over settings.ini
+    // (src/settings.c).
     const char* aspect = getenv("LSD_ASPECT");
-    // --resolution N (or LSD_RESOLUTION): psyz draws at N times 320x240,
-    // 1 (the console's) to PSYZ_INTERNAL_RES_MAX.
     const char* resolution = getenv("LSD_RESOLUTION");
+    const char* scale = getenv("LSD_SCALE");
     for (int i = 1; i < argc - 1; i++) {
         if (strcmp(argv[i], "--frames") == 0) {
             sFrameLimit = atoi(argv[i + 1]);
@@ -154,6 +154,8 @@ int main(int argc, char** argv) {
             aspect = argv[i + 1];
         } else if (strcmp(argv[i], "--resolution") == 0) {
             resolution = argv[i + 1];
+        } else if (strcmp(argv[i], "--scale") == 0) {
+            scale = argv[i + 1];
         }
     }
     if (disc == NULL) {
@@ -171,21 +173,8 @@ int main(int argc, char** argv) {
         return 2;
     }
     SetUpControls(sSavesDir);
-    if (aspect != NULL) {
-        float ratio;
-        if (Widescreen_Parse(aspect, &ratio) != 0) {
-            StartError("--aspect wants width:height, such as 16:9 (got %s)", aspect);
-            return 2;
-        }
-        Widescreen_Init(ratio);
-    }
-    if (resolution != NULL) {
-        int n = atoi(resolution);
-        if (n < 1 || n > PSYZ_INTERNAL_RES_MAX) {
-            StartError("--resolution wants 1 to %d (got %s)", PSYZ_INTERNAL_RES_MAX, resolution);
-            return 2;
-        }
-        Psyz_VideoSetInternalResolution((unsigned)n);
+    if (SetUpPicture(sSavesDir, aspect, resolution, scale, StartError) != 0) {
+        return 2;
     }
     if (sFrameLimit > 0) {
         sNextVSyncCb = Psyz_SetVSyncCb(CountFrame);

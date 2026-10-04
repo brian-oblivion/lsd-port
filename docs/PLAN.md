@@ -133,6 +133,15 @@ Still open:
   - `resolution` (branch `widescreen`, task 09): `--resolution N`,
     psyz's internal resolution; the menu, movies and pause text checked
     at 4.
+  - `scaling` (branch `widescreen`, 2026-10-04): `scale = sharp`
+    (default), `nearest`, `smooth` or `integer`; psyz's present step.
+    Sharp (integer nearest prescale, then bilinear) fixes the uneven
+    pixels nearest gives at window sizes that are not whole multiples,
+    worst in the menu text. Upscaling filters (xBR and the like) not
+    done; AI upscaling is ruled out by the operator.
+  - `settings` (branch `widescreen`): `settings.ini` in the saves folder
+    holds aspect, resolution and scale, under the command line and
+    environment, so a double-clicked `lsd.exe` can use them.
   - `widescreen` (branch `widescreen`, task 09, not on `main` yet):
     `--aspect 16:9`, anamorphic. psyz's GTE squeezes projected X by 3/4
     in the dream and the display stretches it back; the 2D screens stay
@@ -140,7 +149,8 @@ Still open:
     20x20-cell footprint, wider than the view up to the fog); 2D drawn
     over the dream (pause text) is stretched. Details in
     `docs/research/host-link-surface.md` ("Widescreen (task 09)").
-  - `high-fps` (requested): the game's logic advances once per frame at
+  - `high-fps` (parked 2026-10-04: the game is mostly still; the
+    camera's 6-degree turn steps are where 20 fps shows): the game's logic advances once per frame at
     20 fps (`VSync(3)`), and its timers count frames. Recommended: keep
     the logic at 20 fps and draw extra frames by interpolating camera and
     object transforms between ticks. Running the logic at 60 fps would
@@ -157,7 +167,5 @@ Still open:
   - `controls` (done, task 07): `controls.ini` in the saves folder,
     `layout = modern` (WASD or arrows, the default) or `classic`, and
     per-button keys; psyz `Psyz_PadsSetKeyboardMap`.
-  - `mouse-look` (requested): look and turn with the mouse, behind an
-    option; needs a hook in `DreamSys`'s camera, whose turn and look are
-    a fixed step per tick.
+  - `mouse-look`: dropped by the operator (2026-10-04).
   - bug fixes behind options.
