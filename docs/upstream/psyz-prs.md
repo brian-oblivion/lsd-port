@@ -375,3 +375,23 @@ Under Wine SDL lists no keyboard devices though key events arrive, so
 counts as a keyboard, from then on. Checked under Wine on Xvfb with
 xdotool key presses: the title menu's cursor moves (it did not before).
 No host test: it needs SDL events.
+
+## `pads-keyboard-map`: a game can replace pad 1's keyboard map
+
+Stacked on `pads-keyboard-seen` (both touch `PadRead_Keyboard`'s
+callers); from `upstream/main` it is those two commits. psyz's keyboard
+map for pad 1 was a fixed table, one key per button, and Escape always
+quit at once. `Psyz_PadsSetKeyboardMap(map, count)` (`psyz/input.h`)
+takes a list of `PsyzKeyBinding { key, buttons }`: `key` is the
+backend's key code (an `SDL_Scancode` on SDL3), `buttons` a mask of
+libetc's PadRead bits, so a key can press several buttons and several
+keys one button. The map is copied; NULL or 0 restores the built-in one;
+too many bindings (over `PSYZ_KEYBOARD_MAP_MAX`, 64) or an invalid key
+returns -1 and leaves the map alone. Escape quits only while the map in
+use does not bind it, so a game can pause on Escape and quit through the
+window's close button. Gamepads are untouched. The PSP backend has no
+keyboard and returns -1. The port uses it for `controls.ini` (README,
+"Controls"). Checked on Linux (Xvfb, xdotool keys) and under Wine: every
+default binding, several keys on one button, Escape as START (pause, the
+process stays), Escape unbound (quits), the close button. No host test:
+it needs SDL keyboard state.

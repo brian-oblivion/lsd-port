@@ -5,6 +5,8 @@
 // Exit codes: 2 when there is no usable disc image or saves folder; otherwise the game's
 // (0 after --frames N).
 
+#include "controls.h"
+
 #include <psyz.h>
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_messagebox.h>
@@ -157,6 +159,7 @@ int main(int argc, char** argv) {
     if (SetUpSaves(saves) != 0) {
         return 2;
     }
+    SetUpControls(sSavesDir);
     if (sFrameLimit > 0) {
         sNextVSyncCb = Psyz_SetVSyncCb(CountFrame);
     }

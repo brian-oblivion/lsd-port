@@ -58,7 +58,7 @@ target_compile_options(lsd_game PRIVATE
 set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
     COMPILE_DEFINITIONS main=lsd_game_main)
 
-add_executable(lsd src/main.c)
+add_executable(lsd src/main.c src/controls.c)
 target_link_libraries(lsd PRIVATE lsd_game psyz)
 # MinGW: link its runtime (libgcc, winpthreads) in, so lsd.exe runs without
 # the toolchain's DLLs beside it.
