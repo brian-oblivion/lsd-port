@@ -60,6 +60,29 @@ set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
 
 add_executable(lsd src/main.c src/controls.c)
 target_link_libraries(lsd PRIVATE lsd_game psyz)
+
+# LSD_SANITIZE: GCC sanitizers for the game's C, for example "address,bounds".
+# ASan's global redzones catch code that reaches one static through another's
+# address, which works on the PS1 only because of retail's symbol order
+# (docs/tasks/08-neighbouring-statics.md). psyz's SDK files are instrumented
+# too, since the game hands its vectors to libgte, which then does the
+# overreading; its renderer, movie decoder and SPU core are left out, so the
+# game keeps its speed. Errors do not stop the run with
+# ASAN_OPTIONS=halt_on_error=0.
+set(LSD_SANITIZE "" CACHE STRING "GCC -fsanitize= list for the game's C")
+if(LSD_SANITIZE)
+    set(LSD_SANITIZE_FLAGS -fsanitize=${LSD_SANITIZE} -fsanitize-recover=all
+        -fno-omit-frame-pointer)
+    target_compile_options(lsd_game PRIVATE ${LSD_SANITIZE_FLAGS})
+    get_target_property(LSD_PSYZ_SOURCES psyz SOURCES)
+    list(FILTER LSD_PSYZ_SOURCES INCLUDE REGEX "^src/psyz/")
+    list(FILTER LSD_PSYZ_SOURCES EXCLUDE REGEX "/(libpress|psyz_spu)\\.c$")
+    list(TRANSFORM LSD_PSYZ_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/psyz/psyz/)
+    set_source_files_properties(${LSD_PSYZ_SOURCES} DIRECTORY psyz/psyz
+        PROPERTIES COMPILE_OPTIONS "${LSD_SANITIZE_FLAGS}")
+    target_link_options(lsd PRIVATE -fsanitize=${LSD_SANITIZE})
+endif()
+
 # MinGW: link its runtime (libgcc, winpthreads) in, so lsd.exe runs without
 # the toolchain's DLLs beside it.
 if(MINGW)

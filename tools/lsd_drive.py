@@ -105,6 +105,12 @@ class Run:
 
     def stop(self):
         if self.proc is not None and self.alive():
+            # gdb runs the game in a process group of its own, which killing
+            # gdb's leaves running (and holding the debug server's port).
+            if self.proc.args[0] == 'gdb':
+                for pid in subprocess.run(['pgrep', '-P', str(self.proc.pid)],
+                                          capture_output=True).stdout.split():
+                    os.kill(int(pid), signal.SIGKILL)
             os.killpg(self.proc.pid, signal.SIGTERM)
             try:
                 self.proc.wait(10)
