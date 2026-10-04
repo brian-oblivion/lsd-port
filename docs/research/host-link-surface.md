@@ -286,3 +286,63 @@ programs, so `SDL_AUDIO_DRIVER` has to be set in the prefix's
 `HKCU\Environment`. The release `lsd.exe` links MinGW's runtime
 statically; on Windows, startup errors also show in a message box, and
 `disc/` is also looked for beside the executable.
+
+### Controls and speed (task 07)
+
+Speed (2026-10-04). The dream's FrameClock (`sDreamAuxFrameClock`,
+`frameCount` at +0x0C, paused flag at +0x10) counts one per game tick.
+On DuckStation (no overclock, fast boot only) it was read through the
+GDB stub, with no breakpoints: interrupt, read it with libetc's `Vcount`
+and `sDreamAuxStage`, continue, every half second while a script walked
+at random through about 25 minutes of dreams (seven stages). Emulated
+time is `Vcount` / 59.94, so the stub's pauses do not count. On the port
+the same variables were read from `/proc/<pid>/mem` against the wall
+clock (`LSD_VSYNC=off`). Ticks per second:
+
+| stage | 0 | 1 | 2 | 3 | 4 | 5 | 6 | all |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| DuckStation | 14.3 | 16.7 | 13.6 | 13.8 | 12.8 | 13.5 | 17.8 | 13.8 |
+| port | 20.0 | 19.8 | 20.0 | 20.0 | 20.0 | 20.0 | | 20.0 |
+
+Most console ticks take 4 or 5 vblanks instead of the 3 that `VSync(3)`
+asks for. A cross-check with no stub traffic at all: DuckStation's
+lossless capture (mkv, ffv1) while turning in the first room of day 1
+has a new picture every 5 or 6 vblanks, 10.5 ticks per second. The
+operator chose to keep 20 for now (PLAN "Later", `speed`).
+
+Move bug. On the way, walking back from the first room's start moved the
+player forward on the port, and forward and back moved about 280 units a
+tick where the console moves 64 (cottage walk; 128 outdoors, 384
+running). `Actor__MoveLocalZ` wrote the step into `sActorLocalMoveZ`, a
+static separate from `sActorLocalMove[2]`, while `addLocalTranslation`
+reads x, y and z through `&sActorLocalMove[0]`: adjacent in retail's
+small data, not on the host. lsddecomp `host-actor-local-move` makes it
+one `s16[3]` (the PS1 build still matches). Afterwards forward, back,
+strafe and run step 64, 64, 64 and 384 per tick in the cottage, as on
+DuckStation.
+
+Controls. psyz `pads-keyboard-map` adds `Psyz_PadsSetKeyboardMap`; the
+port's `src/controls.c` reads `controls.ini` from the saves folder (README,
+"Controls"), writes it with the defaults when missing, and reports lines
+it does not understand. The default layout, chosen by the operator: WASD
+or arrows for the d-pad, Q/E L2/R2, Shift cross, R/F triangle/square, Z/C
+L1/R1, Space or Enter circle, Backspace cross, Tab SELECT, Escape START.
+Checked with real key events (xdotool) on Linux (GL build on Xvfb) and
+under Wine (`lsd.exe`): menu cursor, START from the menu, walk, back,
+turn, strafe, run (moveMode 4 only while Shift is held), look, glance,
+Escape pauses and resumes without quitting, pause + Tab + R back to the
+title, a whole day to the graph, SAVE with Space on the comment entry,
+the close button (WM_DELETE_WINDOW, exit 0); `layout = classic` (arrows
+move, Escape quits); a hand-edited file (an override, unknown names
+reported by line). Gamepads were not tested (none attached); their code
+is unchanged. The dream's SELECT + triangle only ends a dream from the
+pause screen (`ObjM__UpdateCloseReadyFlag` needs `pauseSetupStep`).
+
+Mouse look, for later: `DreamSys`'s turn is a fixed 6 degrees per tick
+(`sTurnRotations`, `turnCommand`), the glance (`lookYaw`) steps 45
+degrees a tick up to 180 and springs back, and look up/down
+(`lookOffset`) moves 600 a tick up to 9000; all are set from held pad
+buttons in
+`DreamSys__OnPadEvent`. A mouse would need a hook that adds an arbitrary
+yaw through `updateRotation` (as `StepLookYaw` does with its patched
+row of `sTurnRotations`).

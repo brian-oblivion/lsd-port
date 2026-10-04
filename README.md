@@ -64,6 +64,59 @@ Builds from before October 2026 kept `bu00/` and `bu10/` in the folder
 finds them there. To keep them, move both folders into the per-user folder
 above, or keep using them where they are with `--saves .`.
 
+## Controls
+
+The keyboard, by default:
+
+| key | button | in a dream | in menus |
+| --- | --- | --- | --- |
+| W / S, or Up / Down | d-pad up / down | walk forward / back | move the cursor |
+| A / D, or Left / Right | d-pad left / right | turn | |
+| Q / E | L2 / R2 | step sideways | |
+| Shift (held with forward) | cross | run | |
+| R / F | triangle / square | look up / down | |
+| Z / C | L1 / R1 | glance left / right | |
+| Space or Enter | circle | the link button | confirm |
+| Backspace | cross | | back |
+| Escape | START | pause (again to go on) | start the day |
+| Tab | SELECT | | |
+
+To leave a dream early, pause (Escape), hold Tab and press R (SELECT and
+triangle on the console). Escape does not quit: close the window to quit.
+
+A gamepad works as a PlayStation pad through SDL's mapping (south button
+cross, east circle, west square, north triangle; shoulders L1/R1,
+triggers L2/R2; Start; the d-pad). The sticks do nothing; the game reads
+a digital pad.
+
+### Changing the keys
+
+The keys live in `controls.ini` in the saves folder (above), written with
+the defaults the first time `lsd` starts. Its first setting picks a
+layout:
+
+- `layout = modern`: the table above;
+- `layout = classic`: the console's buttons spread over the keyboard, as
+  in builds before October 2026: arrows d-pad, X cross, D circle, Z
+  square, S triangle, Q L1, R R1, W L2, E R2, Enter START, Backspace
+  SELECT, 1/2 L3/R3. In this layout Escape quits at once.
+
+Below it, one commented line per button shows the layout's keys. To change
+a button, remove the `#` and list its keys, separated by commas:
+
+```
+layout = modern
+circle = Space, K
+start = P
+```
+
+Key names are SDL's ([SDL_Scancode](https://wiki.libsdl.org/SDL3/SDL_Scancode),
+without `SDL_SCANCODE_`): `W`, `Space`, `Left Shift`, `Return`, `Escape`,
+`Up`, `F1`... They name a key's place on a US keyboard, so on AZERTY
+`W` is the key labelled Z. `lsd` prints a line for any setting it does not
+understand and keeps the rest. Delete the file to get the defaults back.
+Escape quits only when no button uses it.
+
 ## Running a release
 
 A release has one archive per platform: the program, these instructions
@@ -111,6 +164,13 @@ Measured against DuckStation (`docs/research/host-link-surface.md`,
   first seconds of a dream are not there.
 - Your GPU draws the picture: in places, shading differs from the
   console's by one 5-bit step and texture edges by about a texel.
+- Speed: the game asks for 20 steps a second in a dream, and the port
+  runs exactly that. A PlayStation cannot keep up with its own request in
+  most places and runs fewer: on DuckStation 13.8 steps a second on
+  average over seven stages (12.8 to 17.8 per stage while walking, about
+  10.5 while turning in the first room). Each step turns, walks or runs
+  the same distance on both, so on the port everything moves about 1.45
+  times as fast (turning nearly twice as fast) as on the console.
 
 ## Building
 

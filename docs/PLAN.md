@@ -142,11 +142,17 @@ Still open:
     object transforms between ticks. Running the logic at 60 fps would
     mean rescaling every frame-counted constant; not recommended.
   - `speed` (reported 2026-10-04): the port feels faster than the
-    console. It runs the dream at a steady 20 ticks per second; the
-    console probably drops ticks where the dream is heavy. Measure, then
-    decide whether to copy that (task 07).
-  - `controls` (requested): configurable keys and modern default
-    bindings (WASD), the console's layout kept as a preset (task 07).
+    console. Measured (task 07): the port runs the dream at 20.0 ticks
+    per second everywhere, DuckStation at 13.8 on average (12.8 to 17.8
+    per stage, ~10.5 turning in the first room). The operator's call:
+    keep 20 for now, as the game's code asks; the feel may need tuning
+    later. A fixed slower pacing (say 14) would be cheap; copying the
+    console's per-scene slowdown needs a frame-cost model psyz lacks.
+    Part of the "too fast" was a port bug, fixed in task 07: forward and
+    back moved by a wrong, fixed step (lsddecomp `host-actor-local-move`).
+  - `controls` (done, task 07): `controls.ini` in the saves folder,
+    `layout = modern` (WASD or arrows, the default) or `classic`, and
+    per-button keys; psyz `Psyz_PadsSetKeyboardMap`.
   - `mouse-look` (requested): look and turn with the mouse, behind an
     option; needs a hook in `DreamSys`'s camera, whose turn and look are
     a fixed step per tick.
