@@ -40,7 +40,8 @@ set(LSD_DECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/decomp" CACHE PATH
     "lsddecomp source tree")
 file(GLOB_RECURSE LSD_GAME_SOURCES CONFIGURE_DEPENDS ${LSD_DECOMP_DIR}/src/*.c)
 list(FILTER LSD_GAME_SOURCES EXCLUDE REGEX "/src/psyq/")
-add_library(lsd_game OBJECT ${LSD_GAME_SOURCES})
+# src/widescreen.c wraps DayTask's methods, so it builds with the game's C.
+add_library(lsd_game OBJECT ${LSD_GAME_SOURCES} src/widescreen.c)
 target_include_directories(lsd_game PRIVATE ${LSD_DECOMP_DIR}/include)
 target_link_libraries(lsd_game PRIVATE psyz)
 # HOST_BUILD: lsddecomp's switch for any build that is not the PS1's.

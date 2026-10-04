@@ -117,6 +117,22 @@ without `SDL_SCANCODE_`): `W`, `Space`, `Left Shift`, `Return`, `Escape`,
 understand and keeps the rest. Delete the file to get the defaults back.
 Escape quits only when no button uses it.
 
+## Picture
+
+By default the picture is the console's: 4:3, 320x240. Two options change
+that (command line or environment, as in the table under "Running a
+release"):
+
+- `--aspect 16:9` (`LSD_ASPECT=16:9`): widescreen. The dream shows more
+  of the world at the sides instead of stretching the 4:3 picture, and
+  the window opens at 16:9. The title menu, the graph, the diary and the
+  movies stay 4:3, with black bars at the sides. Any `W:H` wider than 4:3
+  works (`21:9`, `16:10`). The pause text and other 2D drawn over the
+  dream are stretched to the wider screen; fades fill it.
+- `--resolution N` (`LSD_RESOLUTION=N`): the 3D drawn at N times
+  320x240, 1 to 8, for sharper edges. 2D images and movies keep their
+  pixels.
+
 ## Running a release
 
 A release has one archive per platform: the program, these instructions
@@ -146,6 +162,8 @@ Options, all optional:
 | --- | --- | --- |
 | `--disc FILE.cue` | `LSD_DISC` | the disc image (default: `disc/`, above) |
 | `--saves DIR` | `LSD_SAVES` | where the memory cards live (above) |
+| `--aspect W:H` | `LSD_ASPECT` | the dream's aspect ratio, `4:3` (the console's, default) or wider, such as `16:9` ("Picture") |
+| `--resolution N` | `LSD_RESOLUTION` | the 3D drawn at N times 320x240, 1 (default) to 8 ("Picture") |
 | `--frames N` | | exit after N frames (for tests) |
 | | `LSD_VSYNC` | frame pacing: `auto`, `on` (the display's VSync), `off` (psyz's own limiter), `limitless` |
 | | `LSD_DEBUG_PORT` | psyz's debug server on 127.0.0.1 at that port (screenshots, input) |

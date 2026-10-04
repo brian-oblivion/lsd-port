@@ -406,3 +406,61 @@ game) deadlocks against psyz's logging. Python breakpoints that
 one screenshot can miss it. The title menu falls into the attract movie
 after about 10 s, so menu steps belong in one script that reacts to the
 screen (`lsd_drive.classify` against local references).
+
+### Widescreen (task 09)
+
+On branch `widescreen` (lsd-port and the psyz fork), not on `main`.
+
+How: anamorphic. The PS1's VRAM keeps its layout (the framebuffers sit
+beside the texture pages, so a wider framebuffer would overlap them).
+psyz's software GTE multiplies every projected X by a 16.16 factor
+around OFX (`Psyz_GteSetScreenXScale`, in `RTP_VERTEX`, so RTPS, RTPT and
+the libgte/libgs calls built on them), and the SDL3 backends multiply the
+presented aspect ratio by a stretch (`Psyz_VideoSetDisplayStretch`); a
+third call (`Psyz_VideoSetWindowAspect`) opens the window at 16:9
+(1280x720). The port (`src/widescreen.c`, built with the game's C) wraps
+`gDayTaskMethods.onInit`/`onDeinit` and turns both on for the life of a
+DayTask, which is every dream; everything else (title menu, graph,
+movies, TIM images) is drawn while they are off, so it is 4:3 with bars.
+No change in lsddecomp.
+
+What draws where at 16:9:
+
+- 3D (TMDs through `TransformAndCullPoly`/`DIVPOLYGON`): squeezed, so
+  right. A 360-degree turn in the first room, pose for pose against
+  4:3, shows the same centre and more at the sides.
+- Sprites: psyz's `GsSortSprite` draws a scaled or rotated sprite as a
+  POLY_FT4 through the GTE, so it is squeezed too (position and size);
+  `Viewport__DrawNode` projects world sprites itself (x * projH / z),
+  but hands GsSortSprite that as the pivot, which the GTE path squeezes.
+  A plain sprite (scale 1, no rotation) is a SPRT and is not squeezed:
+  the pause text (CharSprite) is stretched by 4/3, and a world sprite
+  at scale 1 would sit 4/3 too far from the centre (StyleEffect's
+  VariantSprites set their scale every frame, so they take the GTE
+  path; no plain world sprite was seen). Sending plain sprites
+  through the GTE as well was tried and dropped: at 1x its 8x8 glyphs
+  lose texel columns, and even at 4x the POLY_FT4 path's texel rounding
+  garbles them ("Pause" reads "False").
+- Box fills and fades are 2D across 320: they fill the 16:9 screen.
+- Edges: the map draws a footprint of 20x20 cells (2048 units each)
+  ahead of the player, axis-aligned by quadrant and shifted toward the
+  look direction (`StageMap__ComputeFootprintFromRotation`); per polygon
+  the game culls only on GTE flags, winding and depth cue, and
+  `DIVPOLYGON` clips to 320x240 in screen space, which the squeeze
+  keeps. Walking six stages at 16:9 (the first room, the town, Kyoto's
+  fences, the desert, Violence District at night, a red stage) showed no
+  missing ground or walls at the sides: fog ends the view before the
+  footprint's sides. A stage with little fog, looked at diagonally,
+  might still show the footprint's corners; not seen.
+
+`--resolution N` is psyz's internal resolution. At 4 the dream is sharp,
+movies and the menu keep their pixels, and the debug server's
+screenshots stay 320x240 (capture the window to see it).
+
+Checked: psyz host tests (317 passed, 2 skipped, Debug, with a new
+`rot_trans_pers_screen_x_scale`); the GL build in Xvfb at 16:9, window
+captures of the intro movies, menu, dream, pause and links, at 1x and
+4x; the Windows build under Wine at 16:9 reaches the dream with the
+squeeze on and a 1280x720 display. The default (no `--aspect`) runs the
+same code as before: the scale is 0x10000 (the multiply is skipped),
+the stretch 1 and the window 1280x960.

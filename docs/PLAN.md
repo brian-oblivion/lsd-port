@@ -130,12 +130,16 @@ Still open:
 - Enhancements a port can have and the decomp cannot, each behind an
   option that defaults to the console's behaviour, with the decomp kept
   byte-exact (`#ifdef PLATFORM_PC` hooks or psyz settings):
-  - `resolution`: internal resolution above 320x240 (psyz has an
-    `internal_resolution` setting; check the 2D screens and the movies).
-  - `widescreen` (requested): a wider 3D projection and wider screen
-    clip and culling, so objects at the new edges are drawn; the 2D
-    screens (menu, graph, movies) centred with side bars (or stretched,
-    as an option). psyz's aspect setting covers the display side.
+  - `resolution` (branch `widescreen`, task 09): `--resolution N`,
+    psyz's internal resolution; the menu, movies and pause text checked
+    at 4.
+  - `widescreen` (branch `widescreen`, task 09, not on `main` yet):
+    `--aspect 16:9`, anamorphic. psyz's GTE squeezes projected X by 3/4
+    in the dream and the display stretches it back; the 2D screens stay
+    4:3 with bars. No edge culling to widen was found (the map draws a
+    20x20-cell footprint, wider than the view up to the fog); 2D drawn
+    over the dream (pause text) is stretched. Details in
+    `docs/research/host-link-surface.md` ("Widescreen (task 09)").
   - `high-fps` (requested): the game's logic advances once per frame at
     20 fps (`VSync(3)`), and its timers count frames. Recommended: keep
     the logic at 20 fps and draw extra frames by interpolating camera and
