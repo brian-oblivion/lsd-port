@@ -346,3 +346,63 @@ buttons in
 `DreamSys__OnPadEvent`. A mouse would need a hook that adds an arbitrary
 yaw through `updateRotation` (as `StepLookYaw` does with its patched
 row of `sTurnRotations`).
+
+### Neighbouring statics (task 08)
+
+The decomp is byte-exact on the PS1, where every static sits in retail's
+order. Code that reaches one static through another's address works there
+and breaks silently on the PC, which places statics as GCC likes: task
+07's move bug was one. Task 08 looked for the rest.
+
+The tool is an ASan and UBSan build, `-DLSD_SANITIZE=address,bounds`
+(`build-i686-asan`): global redzones turn a read past a static's end
+into a report, and the run goes on (`ASAN_OPTIONS=halt_on_error=0`).
+psyz's SDK files have to be instrumented too, because the game hands its
+vectors to libgte and libgs: with only the game's C instrumented, the old
+move bug went unreported. Instrumenting all of psyz (renderer, movie
+decoder, SPU) slows the game so much that the debug server stops
+answering in the intro movies, so those stay out. Checked first against
+lsddecomp `863ea0777^`: the first step forward reports the move bug
+(`SceneNode__RotateLocalVector`, reading `sActorLocalMoveZ`'s
+neighbour).
+
+Found and fixed (lsddecomp `host-neighbour-statics`, PS1 bytes unchanged):
+
+- `StyleBuildDecorSet` and `StyleUpdateDecorSet` copy the decoration
+  set's position and size whole, through `sStyleDecorPosX` and
+  `sStyleDecorSizeW`, but y and h were separate statics. On the PC GCC
+  made the two never-written firsts `.rodata` constants and dropped the
+  seconds: v0.1 reads the position as (-100, 773874725) and the size as
+  (320, -100), against the console's (-100, -60) and (320, 144). Now a
+  `BoxFillPos` and a `BoxFillSize`.
+- `StyleFillEffectKind0` picks a spawn height by `rand() % 5` from index
+  1, so a pick of 4 reads the word after `sStyleSpawnYChoices[4]`: on the
+  PS1 the first of `sStyleStage05Configs` (0x0A0A0200), on the PC
+  another symbol's word (GCC reverses `.data`). Now one
+  `StyleSpawnYBlock` holds both, and the pick reads through it.
+
+Seen and harmless: `Viewport__DrawNode` forms `&coord.m[3][0]` as its
+loop's end (UBSan's only other report).
+
+Coverage, all on the fixed build with no other report: boot, intro,
+title menu; 15 days walked with random input (forward, run, turn, strafe,
+look, link button); 25 more with the day set from gdb at
+`DreamSys__StartDay`, 15 of them special days (their movies); pause and
+resume; SAVE with the comment entry; LOAD; GRAPH; FLASHBACK, unlocked
+from gdb, walked for 28 minutes at full speed (stopped by the script's
+timeout, not at its end). Read in the source:
+every cast of a static's address to another type (the `(LongVec3 *)` sprite
+and box positions are only the method slot's type; the receivers take two
+words), the comments that mention neighbours or address order, and the
+symbols `HOST_BUILD` defines that the PS1 places by address (each used
+alone). GCC's `-Warray-bounds=2`, `-Wstringop-overflow=4` and
+`-Wstringop-overread` on the game's C find only the harmless
+`Viewport__DrawNode` one.
+
+Headless driving notes: a gdb `dprintf` writes to gdb's buffered stdout,
+so a marker can show up seconds late; the `call` style (`fprintf` in the
+game) deadlocks against psyz's logging. Python breakpoints that
+`gdb.write` and `gdb.flush` are prompt and safe. The pause text blinks:
+one screenshot can miss it. The title menu falls into the attract movie
+after about 10 s, so menu steps belong in one script that reacts to the
+screen (`lsd_drive.classify` against local references).
