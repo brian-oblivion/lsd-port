@@ -11,10 +11,10 @@ Handover from task 08 (`08-neighbouring-statics.md`). The details are in
   - `bf626d791` the decoration set's place and size as structs;
   - `f3b9ccbc4` the spawn heights and Violence District's configs as one
     block.
-- lsd-port branch `task-08-statics` (local, not pushed): the task doc,
-  `LSD_SANITIZE` (CMake), the `lsd_drive.stop()` fix, the research
-  section and this handover. `decomp/` still pins `863ea0777`; moving it
-  to the branch (once pushed and merged) brings both fixes into the port.
+- lsd-port `main` has the task doc, `LSD_SANITIZE` (CMake), the
+  `lsd_drive.stop()` fix, the research section and this handover.
+  `decomp/` still pins `863ea0777`: the two fixes reach the port when the
+  lsddecomp branch is reviewed, merged and pinned.
 
 ## What task 08 found
 
@@ -37,9 +37,8 @@ GCC's static bounds warnings) found nothing more.
 
 ## Open
 
-- **Push and merge** (the operator's call): lsddecomp
-  `host-neighbour-statics`, then the `decomp/` pin and lsd-port
-  `task-08-statics`.
+- **lsddecomp review**: `host-neighbour-statics` goes to a reviewer
+  first; then push, merge, and move lsd-port's `decomp/` pin.
 - **Not compared with DuckStation**: both fixes keep the PS1 bytes and
   make the PC read what the PS1 reads (shown above), but no screenshot
   pair of the bands was made. A stage whose style config picks
