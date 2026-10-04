@@ -141,4 +141,13 @@ Still open:
     the logic at 20 fps and draw extra frames by interpolating camera and
     object transforms between ticks. Running the logic at 60 fps would
     mean rescaling every frame-counted constant; not recommended.
-  - controller remapping, bug fixes behind options.
+  - `speed` (reported 2026-10-04): the port feels faster than the
+    console. It runs the dream at a steady 20 ticks per second; the
+    console probably drops ticks where the dream is heavy. Measure, then
+    decide whether to copy that (task 07).
+  - `controls` (requested): configurable keys and modern default
+    bindings (WASD), the console's layout kept as a preset (task 07).
+  - `mouse-look` (requested): look and turn with the mouse, behind an
+    option; needs a hook in `DreamSys`'s camera, whose turn and look are
+    a fixed step per tick.
+  - bug fixes behind options.
