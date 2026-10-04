@@ -63,8 +63,9 @@ Decided (2026-10-02), so not reopened without the operator:
   warnings only going down; 64-bit clean stays under "Later"
   (docs/design.md has the measurements).
 - save files (2026-10-03): memory cards live in SDL's per-user folder
-  (`SDL_GetPrefPath`: `~/.local/share/<org>/lsd/` on Linux, `%APPDATA%`
-  on Windows), as `bu00/` and `bu10/` there, with an option (and an
+  (`SDL_GetPrefPath`: `~/.local/share/lsd-dream-emulator/` on Linux,
+  `%APPDATA%\lsd-dream-emulator\` on Windows; renamed from `lsd-port/lsd/`
+  on 2026-10-04), as `bu00/` and `bu10/` there, with an option (and an
   environment variable) to put them somewhere else;
 - console reference (2026-10-03): DuckStation, run headless by
   `tools/ds_drive.py`; differences task 05 left (psyz's 59.94 Hz NTSC

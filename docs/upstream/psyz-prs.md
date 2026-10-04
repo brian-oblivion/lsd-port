@@ -365,3 +365,13 @@ their fixed answers. A game that tests SwCARD events without enabling
 them, or without calling `_card_info`, now sees nothing, as on the
 console. 1 test (`card::info_reports_a_new_card_until_it_is_written`).
 The fork's `main` with both: 316 passed, 2 skipped at x86_64 (Debug).
+
+## `pads-keyboard-seen`: a key event counts as a keyboard
+
+From the merge base (`afed8f3`). Pad 1 read the keyboard only while
+`SDL_HasKeyboard()` was true, and was reported disconnected otherwise.
+Under Wine SDL lists no keyboard devices though key events arrive, so
+`lsd.exe` under Wine ignored every key. A `SDL_EVENT_KEY_DOWN` now also
+counts as a keyboard, from then on. Checked under Wine on Xvfb with
+xdotool key presses: the title menu's cursor moves (it did not before).
+No host test: it needs SDL events.

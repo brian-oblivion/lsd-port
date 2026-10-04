@@ -253,7 +253,7 @@ their levels, before the MDEC fix, did not (above).
 ### Release (task 06)
 
 Saves: the cards are `bu00/` and `bu10/` in SDL's per-user folder
-(`~/.local/share/lsd-port/lsd/`, `%APPDATA%\lsd-port\lsd\`), or in
+(`~/.local/share/lsd-dream-emulator/`, `%APPDATA%\lsd-dream-emulator\`), or in
 `--saves DIR` / `LSD_SAVES`, through `Psyz_AdjustPathCB` in `src/main.c`;
 psyz's `_bu_init` now makes the card directories where they are mapped
 (psyz `libcard-bu-init-path`). Checked headless: SAVE on day 2, LOAD after

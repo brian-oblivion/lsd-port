@@ -16,8 +16,9 @@ details of each stop are in `docs/research/host-link-surface.md`
 ## What task 06 did
 
 1. **Saves in the per-user folder.** `bu00/` and `bu10/` live in
-   `SDL_GetPrefPath("lsd-port", "lsd")` (`~/.local/share/lsd-port/lsd/`,
-   `%APPDATA%\lsd-port\lsd\`), or in `--saves DIR` / `LSD_SAVES`
+   `SDL_GetPrefPath(NULL, "lsd-dream-emulator")`
+   (`~/.local/share/lsd-dream-emulator/`, `%APPDATA%\lsd-dream-emulator\`;
+   `lsd-port/lsd/` until 2026-10-04), or in `--saves DIR` / `LSD_SAVES`
    (`--saves` wins), through `Psyz_AdjustPathCB` in `src/main.c`. psyz's
    `_bu_init` makes the card directories where they are mapped. Old
    `bu00/` in the working directory: a note on stderr, never moved.

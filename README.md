@@ -52,9 +52,9 @@ anywhere, so the image cannot be committed by accident.
 The memory cards are two folders, `bu00/` (slot 1) and `bu10/` (slot 2),
 with one file per save, in your per-user folder:
 
-- Linux: `~/.local/share/lsd-port/lsd/` (`$XDG_DATA_HOME/lsd-port/lsd/`
-  when that is set)
-- Windows: `%APPDATA%\lsd-port\lsd\`
+- Linux: `~/.local/share/lsd-dream-emulator/`
+  (`$XDG_DATA_HOME/lsd-dream-emulator/` when that is set)
+- Windows: `%APPDATA%\lsd-dream-emulator\`
 
 `--saves DIR` or `LSD_SAVES=DIR` puts them in `DIR` instead (made if it
 does not exist); `--saves` wins over `LSD_SAVES`.

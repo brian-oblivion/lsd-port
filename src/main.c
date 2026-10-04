@@ -46,7 +46,7 @@ static void CountFrame(void) {
 
 // --saves DIR (or LSD_SAVES): where the memory cards live, as bu00/ and
 // bu10/ (psyz's "bu00:" and "bu10:"). By default SDL's per-user folder:
-// ~/.local/share/lsd-port/lsd/ on Linux, %APPDATA%\lsd-port\lsd\ on Windows.
+// ~/.local/share/lsd-dream-emulator/ on Linux, %APPDATA%\lsd-dream-emulator\ on Windows.
 static char* sSavesDir;
 
 // Psyz_AdjustPathCB: "buXY:NAME" becomes <saves>/buXY/NAME, and "buXY:" or
@@ -70,7 +70,7 @@ static int SetUpSaves(const char* dir) {
         int hasSep = len > 0 && (dir[len - 1] == '/' || dir[len - 1] == '\\');
         SDL_asprintf(&sSavesDir, "%s%s", dir, hasSep ? "" : "/");
     } else {
-        sSavesDir = SDL_GetPrefPath("lsd-port", "lsd");
+        sSavesDir = SDL_GetPrefPath(NULL, "lsd-dream-emulator");
         if (sSavesDir == NULL) {
             StartError("no per-user folder for saves (%s); pass --saves DIR", SDL_GetError());
             return -1;

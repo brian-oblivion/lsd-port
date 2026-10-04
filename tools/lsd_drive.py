@@ -10,7 +10,7 @@ press buttons, take screenshots, change the pacing, wait for log lines.
 
 Everything a run writes (log, raw audio, screenshots, memory card files)
 goes to `out`, never the repository or the real per-user folder: the
-default saves folder is `out/xdg-data/lsd-port/lsd/` unless `saves` (or
+default saves folder is `out/xdg-data/lsd-dream-emulator/` unless `saves` (or
 LSD_SAVES in `env`) says otherwise. The window never opens: SDL renders
 offscreen and plays audio into a raw file (S16LE stereo, 44.1 kHz) through
 its `disk` driver. See docs/tasks/05-*.md for the pitfalls.
