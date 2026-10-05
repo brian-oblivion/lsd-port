@@ -58,6 +58,15 @@ set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
 add_executable(lsd src/main.c src/controls.c src/ini.c src/settings.c)
 target_link_libraries(lsd PRIVATE lsd_game psyz)
 
+# Clang (macOS's compiler, and LSD_CFI's): without noundef it doesn't delete
+# code that passes an uninitialized variable. TmdModel__RaycastFaces passes
+# `p` before it is set (ignored on that first call, and retail never sets
+# it, so lsddecomp can't without changing the PS1's bytes); with noundef,
+# Clang compiled the function to nothing and walking in a dream crashed.
+if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    target_compile_options(lsd_game PRIVATE "SHELL:-Xclang -no-enable-noundef-analysis")
+endif()
+
 # LSD_SANITIZE: GCC sanitizers for the game's C, for example "address,bounds".
 # ASan's global redzones catch code that reaches one static through another's
 # address, which works on the PS1 only because of retail's symbol order
@@ -93,14 +102,9 @@ if(LSD_CFI)
     if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
         message(FATAL_ERROR "LSD_CFI needs Clang: configure with CC=clang")
     endif()
-    # Without noundef, Clang doesn't delete code that passes an
-    # uninitialized variable: TmdModel__RaycastFaces passes `p` before it
-    # is set (ignored on the first call), and Clang compiled the function
-    # to nothing, so walking in a dream crashed.
     set(LSD_CFI_FLAGS -flto=thin -fvisibility=hidden -fsanitize=cfi-icall
         -fsanitize-cfi-icall-generalize-pointers
-        -fno-sanitize-trap=cfi-icall -fsanitize-recover=cfi-icall
-        "SHELL:-Xclang -no-enable-noundef-analysis")
+        -fno-sanitize-trap=cfi-icall -fsanitize-recover=cfi-icall)
     target_compile_options(lsd_game PRIVATE ${LSD_CFI_FLAGS})
     target_compile_options(psyz PRIVATE ${LSD_CFI_FLAGS})
     target_compile_options(lsd PRIVATE ${LSD_CFI_FLAGS})

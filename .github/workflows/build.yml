@@ -87,6 +87,51 @@ jobs:
           name: lsd-linux-${{ matrix.arch }}
           path: build/lsd
 
+  # macOS on Apple Silicon (arm64), with Apple's Clang and SDL3's GPU
+  # renderer on Metal, as psyz's own CI builds it.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submodules
+        run: |
+          git submodule update --init decomp psyz
+          git -C psyz submodule update --init external/SDL external/cimgui
+
+      - name: Install requirements
+        run: brew install cmake ninja
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        shell: bash
+        run: cmake --build build 2>&1 | tee build.log
+
+      - name: Pointer-width warnings
+        run: |
+          n=$(grep -c 'pointer-to-int-cast\|int-to-pointer-cast\|int-to-void-pointer-cast' build.log || true)
+          echo "macos: $n pointer-width warnings" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$n" -eq 0
+
+      # As on Linux: no disc, so lsd must say so and exit with 2. macOS has
+      # no timeout(1); perl's alarm stands in.
+      - name: Smoke test (no disc)
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: |
+          set +e
+          perl -e 'alarm 60; exec @ARGV' ./build/lsd --frames 60 2> stderr.txt
+          status=$?
+          cat stderr.txt
+          test "$status" -eq 2 && grep -q 'no disc image' stderr.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsd-macos-arm64
+          path: build/lsd
+
   # Windows, cross-compiled with MinGW on Linux. It is only built here, not
   # run. i686 uses the port's toolchain file, x86_64 psyz's.
   windows-mingw:
