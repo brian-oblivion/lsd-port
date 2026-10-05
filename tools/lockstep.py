@@ -19,6 +19,9 @@ The config (JSON):
              debug server's)
   freeze     ticks at which the dream clock stops for freeze_len ticks
              (default 40); a screenshot is taken then, f<tick>_<n>.png
+  freeze_shots [count, gap]: more shots per freeze, gap seconds apart,
+             f<tick>_<n>_<k>.png (k from 1), to see what moves while the
+             dream clock is stopped; freeze_len must cover them
   steps      [["menu"], ["day"], ...] (default: menu, then one day):
                ["menu"]                   press START until the title menu
                ["day"] / ["day", "circle"] press START (or the button) and
@@ -72,7 +75,12 @@ def main():
         lines = [l for l in r.text().splitlines() if l.startswith('MARK FROZEN')]
         while shots[0] < len(lines):
             time.sleep(0.8)  # a frame drawn while frozen
-            r.shot('f%05d_%d' % (int(lines[shots[0]].split()[2]), shots[0]))
+            name = 'f%05d_%d' % (int(lines[shots[0]].split()[2]), shots[0])
+            r.shot(name)
+            more = cfg.get('freeze_shots', [1, 0])
+            for k in range(1, more[0]):
+                time.sleep(more[1])
+                r.shot('%s_%d' % (name, k))
             shots[0] += 1
 
     days = 0

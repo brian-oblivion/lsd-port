@@ -55,6 +55,17 @@ warnings (bg_layer.c:116 and 125, tmd_model.c:612, task_objf.c:626 and
 800, stage_map.c:1268) are on paths the code's own comments say can't
 happen.
 
+Neither can be set without changing the PS1 bytes (task 11). Retail never
+initializes them: `p` lives in `s1`, and any assignment (`p = NULL` in
+five places, three of them also with the declarations in four orders,
+or `count == 0 ? NULL : p` as the argument) fills a
+delay slot that retail leaves as a `nop` and swaps `s0` and `s1`
+through the function (11 or 12 instructions differ, same length);
+`junk` is `s1` passed on unset, the caller's value, and `junk = 0`
+changes 12 instructions. So the noundef flag stays; a host-only
+initialization would need `#ifdef HOST_BUILD`, which is the operator's
+call.
+
 ## What the runs reported: 115 call sites
 
 | kind | sites | |

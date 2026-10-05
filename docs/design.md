@@ -151,8 +151,9 @@ day with links through five stages, days 10, 100, 200 and 300 (played in
 one session, and day 200 as the first), a flashback session, SAVE and LOAD,
 and with `--aspect 16:9 --resolution 2`; so is every freeze screenshot but
 one, where two spinning flowers stand at different angles (the shot is
-taken by wall clock while the dream clock is stopped; whether the flowers
-turn on another clock was not checked).
+taken by wall clock while the dream clock is stopped, and task 11 found
+creatures, sparkles and fades still moving during a freeze: they run on
+frame time, so the shot's timing decides what it catches).
 The i686 build is unchanged: its STATE lines and screenshots equal those of
 `main`'s i686 build. Release builds run the dream at the same speed (about
 415 frames a second uncapped at both widths).
