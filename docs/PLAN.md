@@ -62,8 +62,10 @@ Decided (2026-10-02), so not reopened without the operator:
   Windows), with the x86_64 build kept compiling in CI and its width
   warnings only going down; 64-bit clean stays under "Later"
   (docs/design.md has the measurements). Done in task 10 (2026-10-05):
-  x86_64 plays as i686, width warnings 0; i686 stays the release default
-  until the operator switches.
+  x86_64 plays as i686, width warnings 0. **64-bit by default**
+  (2026-10-05, after task 11's soak): x86_64 is the default build and the
+  release (Linux and Windows); i686 stays in CI, keeping the PS1-sized
+  layouts checked.
 - TMD and sub-block tables (2026-10-05, task 10): on every host the file's
   32-bit words keep offsets, resolved at each use (`TMD_LIST_ADDR`,
   `SUBBLOCK_OBJ`, psyz's `GsTMDAddr`), addresses only on the PS1; the one
@@ -132,8 +134,8 @@ Still open:
 
 ### Later (not needed for "playable")
 
-- 64-bit clean: done (task 10). Left: 64-bit releases, and a macOS or
-  ARM64 build, which would start from it.
+- 64-bit clean: done (task 10), and the default since task 11. Left: a
+  macOS or ARM64 build, which starts from it.
 - Enhancements a port can have and the decomp cannot, each behind an
   option that defaults to the console's behaviour, with the decomp kept
   byte-exact (`#ifdef PLATFORM_PC` hooks or psyz settings):

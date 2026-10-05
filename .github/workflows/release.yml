@@ -1,4 +1,4 @@
-# Release archives of the 32-bit builds, Linux and Windows: the binary, the
+# Release archives of the 64-bit builds, Linux and Windows: the binary, the
 # licences of everything linked in, and how to run it (tools/package.sh). No
 # game data and no BIOS: the build never has either.
 #
@@ -22,8 +22,8 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - platform: linux-i686
-          - platform: windows-i686
+          - platform: linux-x86_64
+          - platform: windows-x86_64
     steps:
       - uses: actions/checkout@v4
 
@@ -34,22 +34,21 @@ jobs:
 
       - name: Install requirements
         run: |
-          if [ "${{ matrix.platform }}" = linux-i686 ]; then
-            sudo dpkg --add-architecture i386
-            pkgs="gcc-multilib g++-multilib libsdl2-dev:i386 libxtst-dev:i386"
+          if [ "${{ matrix.platform }}" = linux-x86_64 ]; then
+            pkgs="libsdl2-dev libxtst-dev"
           else
-            pkgs="gcc-mingw-w64-i686 g++-mingw-w64-i686"
+            pkgs="gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64"
           fi
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build $pkgs
 
       - name: Build
         run: |
-          if [ "${{ matrix.platform }}" = linux-i686 ]; then
+          if [ "${{ matrix.platform }}" = linux-x86_64 ]; then
             cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
           else
             cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-              -DCMAKE_TOOLCHAIN_FILE=cmake/windows-i686.cmake
+              -DCMAKE_TOOLCHAIN_FILE=psyz/psyz/cmake/windows-x86_64.cmake
           fi
           cmake --build build
 
@@ -59,7 +58,7 @@ jobs:
       # (README, "Running a release").
       - name: Check what the binary needs
         run: |
-          if [ "${{ matrix.platform }}" = linux-i686 ]; then
+          if [ "${{ matrix.platform }}" = linux-x86_64 ]; then
             strip build/lsd
             readelf -d build/lsd | grep NEEDED
             if readelf -d build/lsd | grep NEEDED | grep -v 'libc\.so\|libm\.so\|libgcc_s\.so'; then
@@ -67,8 +66,8 @@ jobs:
             fi
             objdump -T build/lsd | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
           else
-            i686-w64-mingw32-strip build/lsd.exe
-            dlls=$(i686-w64-mingw32-objdump -p build/lsd.exe | sed -n 's/.*DLL Name: //p')
+            x86_64-w64-mingw32-strip build/lsd.exe
+            dlls=$(x86_64-w64-mingw32-objdump -p build/lsd.exe | sed -n 's/.*DLL Name: //p')
             echo "$dlls"
             if echo "$dlls" | grep -iv '^\(advapi32\|gdi32\|imm32\|kernel32\|ole32\|oleaut32\|setupapi\|shell32\|user32\|version\|winmm\|ws2_32\|msvcrt\|api-ms-win-crt-.*\)\.dll$'; then
               exit 1
@@ -88,7 +87,7 @@ jobs:
         run: |
           version=${GITHUB_REF_NAME}
           [ "$GITHUB_REF_TYPE" = tag ] || version=$(git rev-parse --short HEAD)
-          if [ "${{ matrix.platform }}" = linux-i686 ]; then bin=build/lsd; else bin=build/lsd.exe; fi
+          if [ "${{ matrix.platform }}" = linux-x86_64 ]; then bin=build/lsd; else bin=build/lsd.exe; fi
           tools/package.sh "$bin" "lsd-$version-${{ matrix.platform }}" dist
 
       - uses: actions/upload-artifact@v4
@@ -115,4 +114,4 @@ jobs:
           ls -l dist
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
             --draft --title "$GITHUB_REF_NAME" \
-            --notes "Native builds of LSD: Dream Emulator for 32-bit Linux and Windows. You need your own disc image of the game (README.txt in each archive); no game data is included."
+            --notes "Native builds of LSD: Dream Emulator for 64-bit Linux and Windows. You need your own disc image of the game (README.txt in each archive); no game data is included."

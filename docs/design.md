@@ -5,7 +5,10 @@ holds the measurements behind the open ones, with a recommendation each.
 
 ## Pointer width: 32-bit first (*decided 2026-10-02*)
 
-The operator took the recommendation below.
+The operator took the recommendation below. Superseded on 2026-10-05:
+once task 10 made x86_64 play as i686 does and task 11's soak found no
+difference, x86_64 became the default build and the release; i686 stays in
+CI.
 
 Measured 2026-10-02 on the game's C as it compiles for the host
 (task 01: lsddecomp `e5daad5c3`, psyz fork `main` `8030744`), GCC 16.2,
@@ -132,8 +135,8 @@ nothing can test it yet.
 ### Reproducing
 
 ```sh
-# 32-bit (the default build) and 64-bit
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+# 32-bit and 64-bit (the default since 2026-10-05)
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLSD_ARCH=i686
 cmake -S . -B build-x86_64 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DLSD_ARCH=x86_64
 ninja -C build-x86_64 -t clean lsd_game && ninja -C build-x86_64 lsd_game 2>&1 |
@@ -237,7 +240,8 @@ under Wine, loads a card written by Linux x86_64.
 
 ### What is left
 
-- 64-bit as the release default is the operator's call: Linux x86_64
-  would drop the multilib requirement, and a macOS or ARM64 build would
-  start from it. Neither has been built yet.
-- Not run at 64 bits: the ending, a year's wrap, real Windows.
+- 64-bit is the release default since 2026-10-05 (the operator's call,
+  after task 11). A macOS or ARM64 build starts from it; neither has been
+  built yet.
+- Not run at 64 bits: real Windows. (Task 11 ran the ending and a year's
+  wrap, `docs/tasks/11-64-bit-soak-handover.md`.)

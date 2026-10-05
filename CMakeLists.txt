@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.21..3.31)
 
-# On Linux the default build is i686, through cmake/linux-i686.cmake (32-bit
-# first, docs/design.md). LSD_ARCH=x86_64 builds the 64-bit one with the
-# host's compiler as-is; since task 10 it plays as i686 does, and CI keeps its
-# pointer-width warnings at 0. A toolchain file given on the command line
-# (Windows, for example) takes precedence.
-set(LSD_ARCH i686 CACHE STRING "Linux build: i686 (default) or x86_64")
+# On Linux the default build is x86_64, with the host's compiler as-is (since
+# task 10 it plays as i686 does, docs/design.md). LSD_ARCH=i686 builds the
+# 32-bit one through cmake/linux-i686.cmake, which keeps the PS1-sized
+# layouts checked; CI builds both and keeps pointer-width warnings at 0. A
+# toolchain file given on the command line (Windows, for example) takes
+# precedence.
+set(LSD_ARCH x86_64 CACHE STRING "Linux build: x86_64 (default) or i686")
 set_property(CACHE LSD_ARCH PROPERTY STRINGS i686 x86_64)
 if(NOT CMAKE_TOOLCHAIN_FILE AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux"
         AND LSD_ARCH STREQUAL "i686")
@@ -15,8 +16,8 @@ endif()
 project(lsd-port C)
 message(STATUS "lsd-port: ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}, "
                "${CMAKE_SIZEOF_VOID_P}-byte pointers")
-# A build directory configured before i686 became the default keeps its
-# 64-bit compiler settings, whatever LSD_ARCH says.
+# A build directory keeps the compiler it was configured with, whatever
+# LSD_ARCH says later.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if(LSD_ARCH STREQUAL "i686" AND NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
         message(FATAL_ERROR "LSD_ARCH is i686 but this build directory "

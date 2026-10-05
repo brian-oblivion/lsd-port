@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The default build, i686 (32-bit first, docs/design.md), and x86_64, which
-  # is kept compiling and whose pointer-width warnings may only go down.
+  # The default build, x86_64, and i686, which keeps the PS1-sized layouts
+  # checked. Pointer-width warnings stay at 0 at both widths.
   linux:
     runs-on: ubuntu-latest
     strategy:
