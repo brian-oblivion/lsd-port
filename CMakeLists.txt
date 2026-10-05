@@ -79,6 +79,33 @@ if(LSD_SANITIZE)
     target_link_options(lsd PRIVATE -fsanitize=${LSD_SANITIZE})
 endif()
 
+# LSD_CFI: Clang's check of every indirect call against the callee's type,
+# for calls through a mistyped function pointer (wrong arity, an integer
+# for a pointer, a lost return value), which compilers don't warn about.
+# Pointer types count as one, so the game's C inheritance (a vtable slot
+# typed with the derived class's self, filled with the base's method) passes;
+# -fsanitize=function can't be told that, and its reports were all such.
+# Needs Clang and lld: CC=clang, a build directory of its own. Reports
+# don't stop the run; each call site reports once.
+option(LSD_CFI "Clang CFI indirect-call check of the game's C and psyz" OFF)
+if(LSD_CFI)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "LSD_CFI needs Clang: configure with CC=clang")
+    endif()
+    # Without noundef, Clang doesn't delete code that passes an
+    # uninitialized variable: TmdModel__RaycastFaces passes `p` before it
+    # is set (ignored on the first call), and Clang compiled the function
+    # to nothing, so walking in a dream crashed.
+    set(LSD_CFI_FLAGS -flto=thin -fvisibility=hidden -fsanitize=cfi-icall
+        -fsanitize-cfi-icall-generalize-pointers
+        -fno-sanitize-trap=cfi-icall -fsanitize-recover=cfi-icall
+        "SHELL:-Xclang -no-enable-noundef-analysis")
+    target_compile_options(lsd_game PRIVATE ${LSD_CFI_FLAGS})
+    target_compile_options(psyz PRIVATE ${LSD_CFI_FLAGS})
+    target_compile_options(lsd PRIVATE ${LSD_CFI_FLAGS})
+    target_link_options(lsd PRIVATE -fuse-ld=lld ${LSD_CFI_FLAGS})
+endif()
+
 # MinGW: link its runtime (libgcc, winpthreads) in, so lsd.exe runs without
 # the toolchain's DLLs beside it.
 if(MINGW)
