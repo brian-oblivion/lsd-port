@@ -56,7 +56,7 @@
 #define JUMP_DISTANCE 4096
 #define JUMP_ANGLE 512 // 45 degrees
 
-static int sPace = PACING_PACE_DEFAULT;
+static int sPace = PACING_PACE_GAME;
 static int sSmooth;
 
 static void (*sDayTaskOnInit)(DayTask* self, s32 a, s32 b, s32 c);
@@ -390,7 +390,7 @@ static void PacedDayTaskOnDeinit(DayTask* self) {
 }
 
 void Pacing_Init(int pace, int smooth) {
-    if (pace == PACING_PACE_DEFAULT && !smooth) {
+    if (pace == PACING_PACE_GAME && !smooth) {
         return; // the game's own pacing
     }
     sPace = pace;

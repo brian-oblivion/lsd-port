@@ -145,23 +145,22 @@ The command line and the environment win over it (the table under
 
 ## Pace
 
-Two more settings in the same file change how the dream moves. Both are
-off (the game as it is) unless you turn them on.
+Two more settings in the same file change how the dream moves.
+`pace = 20` and `smooth = off` give the game exactly as its code runs it.
 
-- `pace = 20` (`--pace N`, `LSD_PACE`): the dream's steps a second, 10 to
-  30. The game asks for 20, which is what the port runs by default; a
-  PlayStation managed about 14 (see "Known differences"), so try
-  `pace = 14` to have a dream feel and last as it did there. A dream's
-  timers count steps, so a slower pace makes a day last longer, as it did
-  on the console. The music keeps its tempo, and the title menu, the graph
-  and the movies keep the game's own pace.
-- `smooth = off` (`--smooth`, `LSD_SMOOTH=on`): with `on`, frames are
-  drawn between the dream's steps, at 59.94 a second, with the camera and
-  whatever moves blended between one step and the next, so turning and
-  walking look smooth at any pace. A creature's own animation keeps its
-  steps, as on the console, and a jump (a link, a respawn) is shown as a
-  jump. It draws three times as many frames; measured on a desktop, each
-  took about a third of a millisecond.
+- `pace = 14` (`--pace N`, `LSD_PACE`): the dream's steps a second, 10 to
+  30. 14 is about what a PlayStation managed (see "Known differences"),
+  so a dream feels and lasts as it did there; the game's code asks for
+  20. A dream's timers count steps, so a faster pace ends a day sooner.
+  The music keeps its tempo, and the title menu, the graph and the movies
+  keep the game's own pace.
+- `smooth = on` (`--smooth on|off`, `LSD_SMOOTH`): frames drawn between
+  the dream's steps, at 59.94 a second, with the camera and whatever moves
+  blended between one step and the next, so turning and walking look
+  smooth at any pace. A creature's own animation keeps its steps, as on
+  the console, and a jump (a link, a respawn) is shown as a jump. `off`
+  shows each step as it is. It draws about four times as many frames;
+  measured on a desktop, each took about a third of a millisecond.
 
 ## Running a release
 
@@ -193,8 +192,8 @@ Options, all optional:
 | `--aspect W:H` | `LSD_ASPECT` | the dream's aspect ratio, `4:3` (default) or wider, such as `16:9` ("Picture") |
 | `--resolution N` | `LSD_RESOLUTION` | the 3D drawn at N times 320x240, 1 (default) to 8 ("Picture") |
 | `--scale MODE` | `LSD_SCALE` | `sharp` (default), `nearest`, `smooth` or `integer` ("Picture") |
-| `--pace N` | `LSD_PACE` | the dream's steps a second, 10 to 30; 20 (default) is the game's, about 14 the console's ("Pace") |
-| `--smooth` | `LSD_SMOOTH` | frames drawn between the dream's steps (`on`; default `off`) ("Pace") |
+| `--pace N` | `LSD_PACE` | the dream's steps a second, 10 to 30; 14 (default) is about the console's, 20 the game's ("Pace") |
+| `--smooth on\|off` | `LSD_SMOOTH` | frames drawn between the dream's steps, `on` (default) or `off` ("Pace") |
 | `--frames N` | | exit after N frames (for tests) |
 | | `LSD_VSYNC` | frame pacing: `auto`, `on` (the display's VSync), `off` (psyz's own limiter), `limitless` |
 | | `LSD_DEBUG_PORT` | psyz's debug server on 127.0.0.1 at that port (screenshots, input) |
@@ -213,15 +212,14 @@ Measured against DuckStation (`docs/research/host-link-surface.md`,
   first seconds of a dream are not there.
 - Your GPU draws the picture: in places, shading differs from the
   console's by one 5-bit step and texture edges by about a texel.
-- Speed: the game asks for 20 steps a second in a dream, and the port
-  runs exactly that. A PlayStation cannot keep up with its own request in
-  most places and runs fewer: on DuckStation 13.8 steps a second on
-  average over seven stages (12.8 to 17.8 per stage while walking, about
-  10.5 while turning in the first room). Each step turns, walks or runs
-  the same distance on both, so on the port everything moves about 1.45
-  times as fast (turning nearly twice as fast) as on the console.
-  `pace = 14` ("Pace") runs the dream at the console's average instead;
-  the port does not copy the console's slowdown from place to place.
+- Speed: the game asks for 20 steps a second in a dream. A PlayStation
+  cannot keep up with its own request in most places and runs fewer: on
+  DuckStation 13.8 steps a second on average over seven stages (12.8 to
+  17.8 per stage while walking, about 10.5 while turning in the first
+  room). The port runs a steady 14 by default ("Pace"), the console's
+  average; it does not copy the console's slowdown from place to place.
+  With `pace = 20` everything moves about 1.45 times as fast as on the
+  console (turning nearly twice as fast).
 
 ## Building
 

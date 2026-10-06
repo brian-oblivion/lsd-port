@@ -248,12 +248,13 @@ under Wine, loads a card written by Linux x86_64.
 
 ## Pace and smooth (task 12, 2026-10-06)
 
-Two settings, both off unless the player turns them on (README, "Pace"):
-`pace = N`, the dream's ticks a second, and `smooth = on`, frames drawn
-between them. Both live in `src/pacing.c`, which, like `widescreen.c`,
+Two settings (README, "Pace"): `pace = N`, the dream's ticks a second,
+and `smooth = on`, frames drawn between them; 14 and on by default since
+2026-10-06, the operator's choice after playing them. Both live in `src/pacing.c`, which, like `widescreen.c`,
 changes method tables rather than lsddecomp: it replaces
 `gDrawSystemMethods.runLoop` and wraps DayTask's `onInit` and `onDeinit`
-to know when a dream runs. With the defaults it installs nothing.
+to know when a dream runs. At `pace = 20, smooth = off` it installs
+nothing: the game as its code runs it.
 
 ### How the game paces itself
 

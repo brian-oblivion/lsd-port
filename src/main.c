@@ -137,20 +137,16 @@ int main(int argc, char** argv) {
     // libcd reads. The game needs it from its first file on.
     const char* disc = getenv("LSD_DISC");
     const char* saves = getenv("LSD_SAVES");
-    // --aspect W:H, --resolution N, --scale MODE, --pace N, --smooth (or
-    // LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH=on|off):
+    // --aspect W:H, --resolution N, --scale MODE, --pace N, --smooth on|off
+    // (or LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH):
     // the picture and the dream's pacing, over settings.ini (src/settings.c).
     SettingArgs settings = {
         getenv("LSD_ASPECT"), getenv("LSD_RESOLUTION"), getenv("LSD_SCALE"),
         getenv("LSD_PACE"),   getenv("LSD_SMOOTH"),
     };
-    for (int i = 1; i < argc; i++) {
-        const char* value = i + 1 < argc ? argv[i + 1] : NULL;
-        if (strcmp(argv[i], "--smooth") == 0) {
-            settings.smooth = "on";
-        } else if (value == NULL) {
-            break;
-        } else if (strcmp(argv[i], "--frames") == 0) {
+    for (int i = 1; i < argc - 1; i++) {
+        const char* value = argv[i + 1];
+        if (strcmp(argv[i], "--frames") == 0) {
             sFrameLimit = atoi(value);
         } else if (strcmp(argv[i], "--disc") == 0) {
             disc = value;
@@ -164,6 +160,8 @@ int main(int argc, char** argv) {
             settings.scale = value;
         } else if (strcmp(argv[i], "--pace") == 0) {
             settings.pace = value;
+        } else if (strcmp(argv[i], "--smooth") == 0) {
+            settings.smooth = value;
         }
     }
     if (disc == NULL) {
