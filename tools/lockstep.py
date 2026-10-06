@@ -28,11 +28,19 @@ The config (JSON):
                                           play the dream to its EndDay
                ["press", "down circle", gap]
                ["shot", name], ["shots", prefix, count, gap], ["sleep", s]
+               ["wait_tick", t]           wait until a STATE or DRAW line
+                                          (config "trace", "draw_trace")
+                                          reports dream tick t
+               ["tick_shots", prefix, count, gap]
+                                          like "shots", each named by the
+                                          last tick reported when it returns
   cards      a saves folder (bu00/ ...) to start from
   audio      true: SDL's disk audio driver into OUT/<tag>/<tag>.raw;
              otherwise the dummy driver
   env        more environment for the game (LSD_ASPECT, ...)
-  flashback, pktuse, probe, trace: see tools/lockstep_gdb.py
+  flashback, pktuse, probe, trace, draw_trace: see tools/lockstep_gdb.py
+  gdb_extra  more gdb Python files to source after lockstep_gdb.py, for a
+             one-off tracer (they see its globals through `import __main__`)
 
 Everything goes to OUT/<tag>/ and OUT/<tag>.state: game imagery and save
 files, so never into the repository. The build should be -O0.
@@ -61,8 +69,10 @@ def main():
     gdbscript = os.path.join(out, 'lockstep.gdb')
     with open(gdbscript, 'w') as f:
         f.write('set pagination off\nset debuginfod enabled off\n'
-                'handle SIGPIPE nostop noprint\nsource %s\nrun\n'
-                'echo MARK STOPPED\\n\nbt 25\n' % os.path.join(TOOLS, 'lockstep_gdb.py'))
+                'handle SIGPIPE nostop noprint\nsource %s\n' % os.path.join(TOOLS, 'lockstep_gdb.py'))
+        for extra in cfg.get('gdb_extra', []):
+            f.write('source %s\n' % os.path.abspath(extra))
+        f.write('run\necho MARK STOPPED\\n\nbt 25\n')
     env = {'LSD_LOCKSTEP': os.path.abspath(cfgp)}
     if not cfg.get('audio'):
         env['SDL_AUDIO_DRIVER'] = 'dummy'
@@ -82,6 +92,14 @@ def main():
                 time.sleep(more[1])
                 r.shot('%s_%d' % (name, k))
             shots[0] += 1
+
+    def last_tick():
+        for l in reversed(r.text().splitlines()):
+            if l.startswith('STATE tr tick='):
+                return int(l.split()[2].split('=')[1])
+            if l.startswith('DRAW '):
+                return int(l.split()[1])
+        return -1
 
     days = 0
     try:
@@ -115,6 +133,16 @@ def main():
                 for i in range(step[2]):
                     r.shot('%s%02d' % (step[1], i))
                     time.sleep(step[3])
+            elif k == 'wait_tick':
+                t0 = time.time()
+                while last_tick() < step[1]:
+                    if time.time() - t0 > cfg.get('day_timeout', 900) or not r.alive():
+                        raise RuntimeError('tick %d not reached' % step[1])
+                    time.sleep(0.05)
+            elif k == 'tick_shots':
+                for i in range(step[2]):
+                    r.shot('%s%02d_t%05d' % (step[1], i, max(last_tick(), 0)))
+                    time.sleep(step[3])
             elif k == 'sleep':
                 time.sleep(step[1])
             else:
@@ -125,7 +153,7 @@ def main():
         time.sleep(0.5)
         txt = r.text()
         r.stop()
-        keep = ('STATE', 'MARK', 'SAVEBLK', 'POOL', 'PKT', 'PROBE')
+        keep = ('STATE', 'MARK', 'SAVEBLK', 'POOL', 'PKT', 'PROBE', 'DRAW')
         with open(out + '.state', 'w') as f:
             f.write('\n'.join(l for l in txt.splitlines() if l.startswith(keep)) + '\n')
         i = txt.find('MARK STOPPED')
