@@ -42,12 +42,13 @@ jobs:
       # that SDL3's own build needs, as psyz's CI does. i686 needs the
       # multilib compiler and i386 headers; libsdl2-dev:i386 is out since
       # Ubuntu's libglib2.0-dev:i386, which it pulls in, stopped installing
-      # beside the amd64 one, so it gets X11 and ALSA's directly.
+      # beside the amd64 one, so it gets the X11 (and extensions) and ALSA
+      # headers directly.
       - name: Install requirements
         run: |
           if [ "${{ matrix.arch }}" = i686 ]; then
             sudo dpkg --add-architecture i386
-            pkgs="gcc-multilib g++-multilib libx11-dev:i386 libxext-dev:i386 libxtst-dev:i386 libasound2-dev:i386 mesa-vulkan-drivers:i386"
+            pkgs="gcc-multilib g++-multilib libx11-dev:i386 libxext-dev:i386 libxtst-dev:i386 libxcursor-dev:i386 libxi-dev:i386 libxrandr-dev:i386 libxfixes-dev:i386 libxss-dev:i386 libasound2-dev:i386 mesa-vulkan-drivers:i386"
           else
             pkgs="libsdl2-dev libxtst-dev mesa-vulkan-drivers"
           fi
