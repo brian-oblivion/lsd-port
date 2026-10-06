@@ -245,3 +245,114 @@ under Wine, loads a card written by Linux x86_64.
   built yet.
 - Not run at 64 bits: real Windows. (Task 11 ran the ending and a year's
   wrap, `docs/tasks/11-64-bit-soak-handover.md`.)
+
+## Pace and smooth (task 12, 2026-10-06)
+
+Two settings, both off unless the player turns them on (README, "Pace"):
+`pace = N`, the dream's ticks a second, and `smooth = on`, frames drawn
+between them. Both live in `src/pacing.c`, which, like `widescreen.c`,
+changes method tables rather than lsddecomp: it replaces
+`gDrawSystemMethods.runLoop` and wraps DayTask's `onInit` and `onDeinit`
+to know when a dream runs. With the defaults it installs nothing.
+
+### How the game paces itself
+
+Everything, menus and movies too, runs in `DrawSystem__RunLoop`:
+`VSync(3)`, the DrawSystem's callback, then `notifyParents(VSYNC)`. In a
+dream one pass is, in order: the Viewport's flip (it draws the ordering
+table the last pass built and swaps the display), the dream FrameClock's
+tick, which first has the Viewport build the next table (`Viewport__Update`
+draws the world as the last tick left it) and then runs the dream's logic
+(`DreamSys__TimerTick`, the entities), then the pad's dispatch. So the
+picture a pass builds is one tick behind the logic of that pass, and
+`VSync(3)` gives one tick per three blanks: 19.98 a second at 59.94 Hz.
+
+psyz's `VSync(n)` presents, waits n blanks, reads the pads and runs the
+`VSyncCallback` functions n times. In a dream that is the CD driver's
+service (`ServiceCdDriver`); the music is not among them. psyz runs
+libsnd's sequencer (`SsSeqCalledTbyT`) from the audio thread, through its
+root-counter emulation (`audio_callback` → `Psyz_SpuPullSamples` →
+`Psyz_RcntAdd` → `_SsTrapIntrVSync`), so the music keeps its tempo
+whatever the game's loop does.
+
+### Pace
+
+In a dream, `PacedRunLoop` makes one pass per blank: `Psyz_VideoVSync(0)`
+presents and waits one blank, and every 60 / pace blanks (an integer
+phase: `pace` added per blank, a tick at 60) the pass is a tick: the psyz
+fork's `Psyz_VSyncRunCallbacks(3)` (what `VSync(3)` does once its wait is
+over: the pads, the debug server's hook once, the VSyncCallbacks three
+times), then RunLoop's callback and notification. Each tick sees exactly
+what it sees at 20, the CD service three times included, only further
+apart, so a pace changes nothing but time. At a pace that doesn't divide
+60 the ticks come every 4 or 5 blanks (14: 13.99 a second).
+
+The debug server's frames (`/input`) and `--frames` stay ticks. Outside a
+dream (the title menu, the graph, movies, the diary) the loop is RunLoop's.
+
+### Smooth
+
+On the blanks between ticks `DrawInBetween` draws a frame as a tick's
+pass does, `flip` then `update`, with the world placed i / n of the way
+from where the last tick drew it to where its logic has put it since, n
+being the passes from the last tick to the next (even steps, so a tick that
+comes a blank late doesn't show).
+
+- What it blends: before each tick (`RecordDrawn`) the pose (coord.t and
+  `param->rotate`) of every node in the trees `Viewport__Update` draws,
+  about 2900 in a dream, most of them grid cells. Between ticks every node
+  whose pose has changed is blended, the rotation as an angle the short
+  way round, and marked dirty (`flg = 0`) so `Viewport__DrawNode`
+  rebuilds its matrix from `param`, as every mover in the game's code
+  already does. The camera is DreamSys's coordinate (the view's parent),
+  so it is one of them. Not blended: a TodActor's parts, whose moves are
+  its TOD animation (kept at the tick rate, as on the console), and
+  GridCells, which the StageMap moves by whole cells (2048, with quarter
+  turns) to reuse them on the other side as the player walks.
+- Jumps: a node that moved more than 4096 along an axis or 45 degrees in
+  one tick is drawn where the tick drew it; when that node is DreamSys the
+  frame isn't drawn at all, so the tick's own picture stays up. A
+  threshold rather than DreamSys's link state, because it catches links,
+  respawns and anything else that teleports, objects too. Measured over
+  four days of every tick: walking moves DreamSys up to ~130 a tick, some
+  stages carry it 256 or 512 a tick for a while, a turn is 68 (6
+  degrees), and every link or respawn was 9824 or more.
+- The game's state: the draw writes every drawn node's `GsCOORDINATE2`
+  (matrix, `workm` cache, `flg`) and psyz's libgs globals. `BlendTree`
+  copies every coordinate before the draw and `Restore` puts them and
+  the blended rotations back, so the logic finds what it left; libgs's
+  frame counter (PSDCNT, which only tells caches apart), the display
+  buffer and the ordering tables move on, as they do every frame. The draw
+  steps no animation, timer or `rand()`: the lockstep runs below show it.
+- 2D drawn in the dream (fades, the pause text, sprites) is in the same
+  trees and is redrawn as it is. Things the game moves on frame time (the
+  DrawSystem's VSYNC event: fades, sparkles) still move once a tick.
+- Frames are presented at psyz's 59.94 Hz, the rate `VSync` counts in.
+  A 120 or 144 Hz display gets 59.94 frames a second (psyz's limiter);
+  presenting at the display's own rate would need psyz to decouple
+  presenting from its blank count.
+
+### Measured
+
+- Lockstep (`tools/lockstep.py`, x86_64 Debug, task 11's configs): pace 20
+  with smooth on, pace 14, and pace 14 with smooth on, each against pace
+  20 with smooth off, over r1 to r4 (16 days) and `rt` (four days with a
+  STATE line every tick, 12 955 lines): every STATE and SAVEBLK line
+  identical.
+- The music (`SDL_AUDIO_DRIVER=disk`, day 3, standing, the last 60 s):
+  the onset envelope's beat period is 2.79 s at pace 20 and at 14, and the
+  time stretch that best maps one onto the other is 1.00 (correlation
+  0.83; 0.04 at 0.70, 0.85, 0.95 and 1.05).
+- In-between frames (`draw_trace` in `tools/lockstep_gdb.py`, day 22,
+  pace 14): through a turn the camera's yaw runs 2048, 2028, 2012, 1996,
+  1980 (tick), ...; at the link on tick 118 → 119 (33 344 units) that
+  interval has the tick's picture only. Entities moving 50 or 512 a tick
+  (days 340 and 22) are blended; the state lines with smooth on and off
+  are the same.
+- Speed (Release x86_64, headless on a Ryzen 9 7950X and a Radeon RX 9070, 59.94 Hz with
+  `LSD_VSYNC=off`): pace 14 with smooth holds 59.9 frames and 13.99
+  ticks a second, a frame's work 349 µs on average (644 µs at most) of
+  its 16 683; pace 20 with smooth 339 µs (1.6 ms at most); the game's own
+  pacing 338 µs per tick frame. Uncapped, pace 14 with smooth runs 3700
+  frames a second in a dream. i686 Release, pace 14 with smooth: 59.9 and
+  13.99, 488 µs.

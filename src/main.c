@@ -137,25 +137,33 @@ int main(int argc, char** argv) {
     // libcd reads. The game needs it from its first file on.
     const char* disc = getenv("LSD_DISC");
     const char* saves = getenv("LSD_SAVES");
-    // --aspect W:H, --resolution N, --scale MODE (or LSD_ASPECT,
-    // LSD_RESOLUTION, LSD_SCALE): the picture, over settings.ini
-    // (src/settings.c).
-    const char* aspect = getenv("LSD_ASPECT");
-    const char* resolution = getenv("LSD_RESOLUTION");
-    const char* scale = getenv("LSD_SCALE");
-    for (int i = 1; i < argc - 1; i++) {
-        if (strcmp(argv[i], "--frames") == 0) {
-            sFrameLimit = atoi(argv[i + 1]);
+    // --aspect W:H, --resolution N, --scale MODE, --pace N, --smooth (or
+    // LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH=on|off):
+    // the picture and the dream's pacing, over settings.ini (src/settings.c).
+    SettingArgs settings = {
+        getenv("LSD_ASPECT"), getenv("LSD_RESOLUTION"), getenv("LSD_SCALE"),
+        getenv("LSD_PACE"),   getenv("LSD_SMOOTH"),
+    };
+    for (int i = 1; i < argc; i++) {
+        const char* value = i + 1 < argc ? argv[i + 1] : NULL;
+        if (strcmp(argv[i], "--smooth") == 0) {
+            settings.smooth = "on";
+        } else if (value == NULL) {
+            break;
+        } else if (strcmp(argv[i], "--frames") == 0) {
+            sFrameLimit = atoi(value);
         } else if (strcmp(argv[i], "--disc") == 0) {
-            disc = argv[i + 1];
+            disc = value;
         } else if (strcmp(argv[i], "--saves") == 0) {
-            saves = argv[i + 1];
+            saves = value;
         } else if (strcmp(argv[i], "--aspect") == 0) {
-            aspect = argv[i + 1];
+            settings.aspect = value;
         } else if (strcmp(argv[i], "--resolution") == 0) {
-            resolution = argv[i + 1];
+            settings.resolution = value;
         } else if (strcmp(argv[i], "--scale") == 0) {
-            scale = argv[i + 1];
+            settings.scale = value;
+        } else if (strcmp(argv[i], "--pace") == 0) {
+            settings.pace = value;
         }
     }
     if (disc == NULL) {
@@ -173,7 +181,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     SetUpControls(sSavesDir);
-    if (SetUpPicture(sSavesDir, aspect, resolution, scale, StartError) != 0) {
+    if (SetUpSettings(sSavesDir, &settings, StartError) != 0) {
         return 2;
     }
     if (sFrameLimit > 0) {

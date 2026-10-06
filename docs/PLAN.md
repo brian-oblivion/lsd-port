@@ -160,21 +160,25 @@ Still open:
     20x20-cell footprint, wider than the view up to the fog); 2D drawn
     over the dream (pause text) is stretched. Details in
     `docs/research/host-link-surface.md` ("Widescreen (task 09)").
-  - `high-fps` (parked 2026-10-04: the game is mostly still; the
-    camera's 6-degree turn steps are where 20 fps shows): the game's logic advances once per frame at
-    20 fps (`VSync(3)`), and its timers count frames. Recommended: keep
-    the logic at 20 fps and draw extra frames by interpolating camera and
-    object transforms between ticks. Running the logic at 60 fps would
-    mean rescaling every frame-counted constant; not recommended.
-  - `speed` (reported 2026-10-04): the port feels faster than the
-    console. Measured (task 07): the port runs the dream at 20.0 ticks
+  - `high-fps` (task 12, branch `task-12-smooth-pace`): `smooth = on`
+    (`--smooth`, `LSD_SMOOTH`; default off) draws a frame at every
+    59.94 Hz blank between the dream's ticks, with the camera (DreamSys's
+    coordinate) and every moving node blended between the last two ticks;
+    a TodActor's parts (its TOD animation) and the StageMap's grid cells
+    are not, and a move of more than 4096 or 45 degrees in a tick (a link,
+    a respawn) is drawn as a jump. The logic stays at its pace; lockstep
+    shows identical state with it on and off. `src/pacing.c`,
+    `docs/design.md` ("Pace and smooth").
+  - `speed` (reported 2026-10-04; task 12): the port feels faster than
+    the console. Measured (task 07): the port runs the dream at 20.0 ticks
     per second everywhere, DuckStation at 13.8 on average (12.8 to 17.8
-    per stage, ~10.5 turning in the first room). The operator's call:
-    keep 20 for now, as the game's code asks; the feel may need tuning
-    later. A fixed slower pacing (say 14) would be cheap; copying the
-    console's per-scene slowdown needs a frame-cost model psyz lacks.
-    Part of the "too fast" was a port bug, fixed in task 07: forward and
-    back moved by a wrong, fixed step (lsddecomp `host-actor-local-move`).
+    per stage, ~10.5 turning in the first room). `pace = N` (`--pace`,
+    `LSD_PACE`; 10 to 30, default 20) now runs the dream at N ticks a
+    second; menus, the graph and movies keep the game's own 20. The
+    operator picks the defaults after playing `pace = 14, smooth = on`.
+    Copying the console's per-scene slowdown needs a frame-cost model psyz
+    lacks. Part of the "too fast" was a port bug, fixed in task 07: forward
+    and back moved by a wrong, fixed step (lsddecomp `host-actor-local-move`).
   - `controls` (done, task 07): `controls.ini` in the saves folder,
     `layout = modern` (WASD or arrows, the default) or `classic`, and
     per-button keys; psyz `Psyz_PadsSetKeyboardMap`.

@@ -18,6 +18,10 @@ Lines it prints, all prefixed for lockstep.py to collect:
   POOL <tag> ...      bytes in the BMemPMgr pool's allocated blocks
   PKT ...             the dream's peak packet-area use (config "pktuse")
   PROBE ...           return values of the functions in config "probe"
+  DRAW <tick> <kind> yaw=... pos=...
+                      the camera (DreamSys) at each Viewport update in config
+                      "draw_trace" [from, to): kind "tick" for the game's own,
+                      "between" for src/pacing.c's in-between frames
 
 Build with -O0 (CMAKE_BUILD_TYPE=Debug): at -O2 the pad and clock functions
 can be inlined, and the script then misses them.
@@ -241,6 +245,25 @@ class Probe(gdb.Breakpoint):
         return False
 
 
+class DrawTrace(gdb.Breakpoint):
+    """Each Viewport update in a tick range: who drew, and the camera."""
+    def stop(self):
+        if not st['active']:
+            return False
+        a, b = C['draw_trace']
+        t = tick()
+        if not a <= t < b:
+            return False
+        caller = gdb.newest_frame().older()
+        kind = 'between' if caller is not None and caller.name() == 'DrawInBetween' else 'tick'
+        c2 = ev('sDreamAuxWorld')['coord2']
+        r = c2['param']['rotate']
+        p = c2['coord']['t']
+        w('DRAW %d %s yaw=%d pitch=%d roll=%d pos=%d,%d,%d' % (
+            t, kind, int(r['vy']), int(r['vx']), int(r['vz']), int(p[0]), int(p[1]), int(p[2])))
+        return False
+
+
 StartDay('DreamSys__StartDay', internal=True)
 EndDay('DreamSys__EndDay', internal=True)
 Tick('FrameClock__Tick', internal=True)
@@ -251,6 +274,8 @@ if C.get('flashback'):
     FlashbackUnlock('UpdateFlashbackLock', internal=True)
 if C.get('pktuse'):
     PacketUse('Viewport__Flip', internal=True)
+if C.get('draw_trace'):
+    DrawTrace('NodeGuardedViewport__Update', internal=True)
 if C.get('probe'):
     a, b = C['probe']['ticks']
     for f in C['probe']['funcs']:
