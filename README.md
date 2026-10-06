@@ -11,8 +11,9 @@ dreams with their music and links, the dream graph, SAVE, LOAD, FLASHBACK
 and the special-day movies. The Windows build has been checked under Wine
 (title menu, a dream with its music, SAVE and LOAD), not yet on Windows
 itself. Against the console (DuckStation as the reference) sound and
-picture match, apart from what "Known differences" lists. The 64-bit build
-compiles but does not run the game yet.
+picture match, apart from what "Known differences" lists. The 64-bit
+builds (Linux x86_64, Windows x86_64) play the same, frame for frame; the
+releases stay 32-bit for now.
 
 The game's C compiles and links against the platform layer,
 [psyz](https://github.com/Xeeynamo/psyz) (through the fork
@@ -202,9 +203,9 @@ Measured against DuckStation (`docs/research/host-link-surface.md`,
 
 ## Building
 
-The default build is 32-bit (i686): the game's C assumes 32-bit pointers,
-and the port keeps them while it is brought up (`docs/design.md`). On an
-x86_64 Linux machine that needs the 32-bit (multilib) libraries.
+The default build is 32-bit (i686), as the releases are (`docs/design.md`).
+On an x86_64 Linux machine that needs the 32-bit (multilib) libraries; the
+64-bit build below does not.
 
 You need `git`, `cmake` (3.21+), `ninja` and a C/C++ compiler, plus the
 development headers SDL3 builds against. SDL3 itself is built from psyz's
@@ -234,9 +235,10 @@ cmake --build build
 
 The options are under "Running a release".
 
-The 64-bit build compiles, but does not run the game yet; it is kept
-building so that it does not fall behind. It needs a build directory of its
-own (a directory configured as one width will not switch to the other):
+The 64-bit build plays as the 32-bit one does (checked tick for tick and
+frame for frame, `docs/design.md`) and needs no 32-bit libraries. It needs
+a build directory of its own (a directory configured as one width will not
+switch to the other):
 
 ```sh
 cmake -S . -B build-x86_64 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLSD_ARCH=x86_64

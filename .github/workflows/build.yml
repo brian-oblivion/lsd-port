@@ -61,11 +61,13 @@ jobs:
         shell: bash
         run: cmake --build build 2>&1 | tee build.log
 
-      # The count to bring down (docs/design.md: 71 at x86_64, 0 at i686).
+      # Addresses held in integers: 0 at both widths since task 10 (docs/design.md),
+      # and it stays 0.
       - name: Pointer-width warnings
         run: |
           n=$(grep -c 'pointer-to-int-cast\|int-to-pointer-cast' build.log || true)
           echo "${{ matrix.arch }}: $n pointer-width warnings" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$n" -eq 0
 
       # CI has no disc, so the game cannot start: lsd must say so and exit
       # with 2. This checks that the game and psyz link into a program that

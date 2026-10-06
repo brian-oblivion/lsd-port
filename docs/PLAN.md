@@ -61,7 +61,13 @@ Decided (2026-10-02), so not reopened without the operator:
 - pointer width (2026-10-02): **32-bit first** (i686 on Linux and
   Windows), with the x86_64 build kept compiling in CI and its width
   warnings only going down; 64-bit clean stays under "Later"
-  (docs/design.md has the measurements).
+  (docs/design.md has the measurements). Done in task 10 (2026-10-05):
+  x86_64 plays as i686, width warnings 0; i686 stays the release default
+  until the operator switches.
+- TMD and sub-block tables (2026-10-05, task 10): on every host the file's
+  32-bit words keep offsets, resolved at each use (`TMD_LIST_ADDR`,
+  `SUBBLOCK_OBJ`, psyz's `GsTMDAddr`), addresses only on the PS1; the one
+  `#ifdef HOST_BUILD` pair each in lsddecomp (docs/design.md).
 - save files (2026-10-03): memory cards live in SDL's per-user folder
   (`SDL_GetPrefPath`: `~/.local/share/lsd-dream-emulator/` on Linux,
   `%APPDATA%\lsd-dream-emulator\` on Windows; renamed from `lsd-port/lsd/`
@@ -126,7 +132,8 @@ Still open:
 
 ### Later (not needed for "playable")
 
-- 64-bit clean, if track 2 chose 32-bit first.
+- 64-bit clean: done (task 10). Left: 64-bit releases, and a macOS or
+  ARM64 build, which would start from it.
 - Enhancements a port can have and the decomp cannot, each behind an
   option that defaults to the console's behaviour, with the decomp kept
   byte-exact (`#ifdef PLATFORM_PC` hooks or psyz settings):

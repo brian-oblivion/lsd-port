@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.21..3.31)
 
-# 32-bit first (docs/design.md): on Linux the default build is i686, through
-# cmake/linux-i686.cmake. LSD_ARCH=x86_64 builds the 64-bit one with the
-# host's compiler as-is; CI keeps it compiling. A toolchain file given on the
-# command line (Windows, for example) takes precedence.
+# On Linux the default build is i686, through cmake/linux-i686.cmake (32-bit
+# first, docs/design.md). LSD_ARCH=x86_64 builds the 64-bit one with the
+# host's compiler as-is; since task 10 it plays as i686 does, and CI keeps its
+# pointer-width warnings at 0. A toolchain file given on the command line
+# (Windows, for example) takes precedence.
 set(LSD_ARCH i686 CACHE STRING "Linux build: i686 (default) or x86_64")
 set_property(CACHE LSD_ARCH PROPERTY STRINGS i686 x86_64)
 if(NOT CMAKE_TOOLCHAIN_FILE AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux"
@@ -49,12 +50,6 @@ target_compile_definitions(lsd_game PRIVATE HOST_BUILD)
 # psyz's porting guide: <psyz.h> comes before every other header.
 # Plain char is unsigned on the PS1 (lsddecomp builds with -funsigned-char).
 target_compile_options(lsd_game PRIVATE -include psyz.h -funsigned-char)
-# GCC 14 made these errors. In the game's C they are portability debt (an
-# address passed as u32 *, an integer as a pointer), counted as warnings
-# until the pointer-width work (docs/design.md) removes them.
-target_compile_options(lsd_game PRIVATE
-    -Wno-error=incompatible-pointer-types -Wno-error=int-conversion)
-
 # The game's main is called by the host's (src/main.c), which needs the name.
 set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
     COMPILE_DEFINITIONS main=lsd_game_main)
