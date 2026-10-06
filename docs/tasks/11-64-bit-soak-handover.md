@@ -48,8 +48,10 @@ Config as in the task doc (seed 1234, freezes at 300/1500/3000, 10 ticks).
   freeze at tick 300 ends at tick 505, with a 10-tick one at 521. Both
   widths take the same path for the same config, so lockstep holds, but
   configs with different `freeze_len` aren't comparable with each other.
-- Day 150 ends at tick 7203, about twice the usual 3650, at both widths
-  (r2 and rt). Not looked into.
+- Day 150 ends at tick 7203 at both widths (r2 and rt): not a bug. Each
+  stage has its own limit (`sStageTimeLimits`, 60 to 600 seconds at 15
+  ticks a second); 7203 is a 480-second stage's, and the common ~3650 is
+  the 240-second one's.
 
 ## B. Sanitizer and CFI at x86_64
 
@@ -159,7 +161,6 @@ operator's call.
 
 ## Open
 
-- Day 150's double-length day (tick 7203), at both widths.
 - `moodPreviousDays[-1]` on day 0 of year 1: retail bug, unfixed.
 - `p` and `junk`: unfixable byte-exactly; a host-only init needs approval.
 - Not driven at 64 bits: every stage's every link, the gamepad, real

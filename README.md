@@ -5,15 +5,14 @@ OutSide Directors Company), built from the matching decompilation
 [lsddecomp](https://github.com/brian-oblivion/lsddecomp), for Linux and
 Windows.
 
-**Status: playable on Linux and Windows (32-bit builds).** With your own
-disc image, the i686 build plays the intro, the title menu, whole days of
+**Status: playable on Linux and Windows (64-bit builds).** With your own
+disc image, the port plays the intro, the title menu, whole days of
 dreams with their music and links, the dream graph, SAVE, LOAD, FLASHBACK
 and the special-day movies. The Windows build has been checked under Wine
 (title menu, a dream with its music, SAVE and LOAD), not yet on Windows
 itself. Against the console (DuckStation as the reference) sound and
-picture match, apart from what "Known differences" lists. The 64-bit
-builds (Linux x86_64, Windows x86_64) play the same, frame for frame; the
-releases stay 32-bit for now.
+picture match, apart from what "Known differences" lists. The 32-bit
+builds (i686) play the same, frame for frame, and can still be built.
 
 The game's C compiles and links against the platform layer,
 [psyz](https://github.com/Xeeynamo/psyz) (through the fork
@@ -149,22 +148,20 @@ A release has one archive per platform: the program, these instructions
 as `README.txt`, the licences (`licences/`, with `SOURCES.txt` saying what
 is linked in and where its source is), and nothing of the game.
 
-- **Windows** (32-bit, runs on 64-bit Windows 10 and 11): unzip, put
+- **Windows** (64-bit, Windows 10 and 11): unzip, put
   `disc/` beside `lsd.exe` and start `lsd.exe`. A console window with the
   log opens beside the game; when the game cannot start, a message box
   says why.
-- **Linux** (32-bit, for x86 and x86_64): unpack, put `disc/` beside `lsd`
-  and run `./lsd`. On a 64-bit system it needs the 32-bit libraries:
-  - always: glibc and libgcc (Debian/Ubuntu `libc6:i386 libgcc-s1:i386`,
-    Arch `lib32-glibc lib32-gcc-libs`), the Vulkan loader and your GPU's
-    32-bit Vulkan driver (`libvulkan1:i386 mesa-vulkan-drivers:i386`;
-    Arch `lib32-vulkan-icd-loader` and `lib32-vulkan-radeon`,
-    `lib32-vulkan-intel` or `lib32-nvidia-utils`);
-  - a display: X11 (`libx11-6:i386 libxext6:i386`; `lib32-libx11
-    lib32-libxext`), or Wayland (`libwayland-client0:i386
-    libxkbcommon0:i386`; `lib32-wayland lib32-libxkbcommon`);
-  - sound: ALSA (`libasound2:i386`; `lib32-alsa-lib`) or PulseAudio
-    (`libpulse0:i386`; `lib32-libpulse`).
+- **Linux** (64-bit, x86_64): unpack, put `disc/` beside `lsd` and run
+  `./lsd`. It needs what a desktop system usually has:
+  - always: glibc, the Vulkan loader and your GPU's Vulkan driver
+    (Debian/Ubuntu `libvulkan1 mesa-vulkan-drivers`; Arch
+    `vulkan-icd-loader` and `vulkan-radeon`, `vulkan-intel` or
+    `nvidia-utils`);
+  - a display: X11 (`libx11-6 libxext6`; `libx11 libxext`), or Wayland
+    (`libwayland-client0 libxkbcommon0`; `wayland libxkbcommon`);
+  - sound: ALSA (`libasound2`; `alsa-lib`) or PulseAudio (`libpulse0`;
+    `libpulse`).
 
 Options, all optional:
 
@@ -203,25 +200,20 @@ Measured against DuckStation (`docs/research/host-link-surface.md`,
 
 ## Building
 
-The default build is 32-bit (i686), as the releases are (`docs/design.md`).
-On an x86_64 Linux machine that needs the 32-bit (multilib) libraries; the
-64-bit build below does not.
+The default build is 64-bit (x86_64), as the releases are.
 
 You need `git`, `cmake` (3.21+), `ninja` and a C/C++ compiler, plus the
 development headers SDL3 builds against. SDL3 itself is built from psyz's
 submodule and linked statically.
 
-- Arch: enable `[multilib]` in `/etc/pacman.conf`, then
-  `pacman -S base-devel cmake ninja lib32-glibc lib32-gcc-libs lib32-libx11
-  lib32-libxext lib32-libxtst lib32-alsa-lib lib32-vulkan-icd-loader`, plus
-  your GPU's 32-bit Vulkan driver (`lib32-vulkan-radeon`,
-  `lib32-vulkan-intel` or `lib32-nvidia-utils`). Wayland and PulseAudio
-  support need `lib32-wayland lib32-libxkbcommon lib32-libpulse` too;
-  without them the build uses X11 and ALSA.
-- Debian/Ubuntu: `sudo dpkg --add-architecture i386`, then
-  `sudo apt install build-essential cmake ninja-build gcc-multilib
-  g++-multilib libsdl2-dev:i386 libxtst-dev:i386 mesa-vulkan-drivers:i386`
-  (`libsdl2-dev` is not linked; it pulls in the headers SDL3 needs).
+- Arch: `pacman -S base-devel cmake ninja libx11 libxext libxtst alsa-lib
+  vulkan-icd-loader`, plus your GPU's Vulkan driver (`vulkan-radeon`,
+  `vulkan-intel` or `nvidia-utils`). Wayland and PulseAudio support need
+  `wayland libxkbcommon libpulse` too; without them the build uses X11 and
+  ALSA.
+- Debian/Ubuntu: `sudo apt install build-essential cmake ninja-build
+  libsdl2-dev libxtst-dev mesa-vulkan-drivers` (`libsdl2-dev` is not
+  linked; it pulls in the headers SDL3 needs).
 
 ```sh
 git clone https://github.com/brian-oblivion/lsd-port.git
@@ -235,23 +227,28 @@ cmake --build build
 
 The options are under "Running a release".
 
-The 64-bit build plays as the 32-bit one does (checked tick for tick and
-frame for frame, `docs/design.md`) and needs no 32-bit libraries. It needs
-a build directory of its own (a directory configured as one width will not
+The 32-bit build (i686) plays as the 64-bit one does (checked tick for
+tick and frame for frame, `docs/design.md`); it keeps the PS1's 4-byte
+pointers, which makes it the one for comparing memory layouts with the
+console. It needs the 32-bit (multilib) libraries: on Arch `[multilib]`
+and the `lib32-` versions of the packages above, on Debian/Ubuntu
+`sudo dpkg --add-architecture i386` and `gcc-multilib g++-multilib
+libsdl2-dev:i386 libxtst-dev:i386 mesa-vulkan-drivers:i386`. It needs a
+build directory of its own (a directory configured as one width will not
 switch to the other):
 
 ```sh
-cmake -S . -B build-x86_64 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLSD_ARCH=x86_64
-cmake --build build-x86_64
+cmake -S . -B build-i686 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLSD_ARCH=i686
+cmake --build build-i686
 ```
 
-Windows, cross-compiled from Linux with MinGW (`mingw-w64`; 32-bit is
-`cmake/windows-i686.cmake`, 64-bit is psyz's toolchain file); `lsd.exe`
+Windows, cross-compiled from Linux with MinGW (`mingw-w64`; 64-bit is
+psyz's toolchain file, 32-bit is `cmake/windows-i686.cmake`); `lsd.exe`
 links MinGW's runtime statically:
 
 ```sh
 cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_TOOLCHAIN_FILE=cmake/windows-i686.cmake
+  -DCMAKE_TOOLCHAIN_FILE=psyz/psyz/cmake/windows-x86_64.cmake
 cmake --build build-win
 ```
 
@@ -262,7 +259,7 @@ cmake --build build-win
 | `decomp/` | lsddecomp, the game's C (submodule) |
 | `psyz/` | lsd-psyz, the Psy-Q replacement for PC (submodule) |
 | `src/` | the port's own code |
-| `cmake/` | toolchain files: Linux i686 (the default) and Windows i686 |
+| `cmake/` | toolchain files: Linux i686 and Windows i686 (the 32-bit builds) |
 | `disc/` | your disc image (not committed) |
 | `tools/` | measurement and test-driving scripts; `package.sh` makes a release archive |
 | `docs/` | the plan and design notes |
