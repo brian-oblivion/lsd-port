@@ -2,7 +2,9 @@
 so two builds (i686 and x86_64, say) can be compared at the same moments.
 
 Loaded by lockstep.py's gdb script; the run's JSON config is $LSD_LOCKSTEP.
-At DreamSys__StartDay it seeds psyz's rand() and optionally sets the day;
+At DreamSys__StartDay it seeds psyz's rand() and optionally sets the day
+(and, with config "spawn" [stage, index], puts the day's first spawn at
+sStageSpawnPoints[stage][index] instead of GenerateInitialSpawn's);
 during the dream it drives pad 1 from a script indexed by the dream
 FrameClock's tick (Pad__DispatchEvents' masks), and at listed ticks it
 freezes that clock for a while (for screenshots) and prints the game state.
@@ -11,7 +13,7 @@ buffered, and an inferior call from a stop handler can deadlock the game.
 
 Lines it prints, all prefixed for lockstep.py to collect:
   MARK <event> ...    StartDay, EndDay, FROZEN/THAWED <tick>, RunTitleMenu,
-                      RunDayTask, FbUnlock
+                      RunDayTask, FbUnlock, Spawn
   STATE <tag> ...     tick, stage, day, the player's position and rotation,
                       psyz's rand state
   SAVEBLK ...         md5 of DreamSys's saved bytes at each StartDay
@@ -264,12 +266,42 @@ class DrawTrace(gdb.Breakpoint):
         return False
 
 
+class SpawnSet(gdb.FinishBreakpoint):
+    """After DreamSys__InitSpawnLoc: the first spawn of config "spawn"."""
+    def __init__(self, frame, ds):
+        super().__init__(frame, internal=True)
+        self.ds = ds
+
+    def stop(self):
+        stage, index = C['spawn']
+        ds = '((DreamSys *)%d)' % self.ds
+        ent = 'sStageSpawnPoints[%d][%d]' % (stage, index)
+        gdb.execute('set var %s->currentStage = %d' % (ds, stage))
+        gdb.execute('set var *(PlayerSpawnGridPos *)&%s->linkCoordinates = '
+                    '*(PlayerSpawnGridPos *)&%s' % (ds, ent))
+        gdb.execute('set var %s->linkCoordinates.position = sSpawnPosAdjust[%s.adjustment]'
+                    % (ds, ent))
+        w('MARK Spawn stage=%d index=%d' % (stage, index))
+        return False
+
+    def out_of_scope(self):
+        pass
+
+
+class InitSpawn(gdb.Breakpoint):
+    def stop(self):
+        SpawnSet(gdb.newest_frame(), int(ev('(unsigned long)self')))
+        return False
+
+
 StartDay('DreamSys__StartDay', internal=True)
 EndDay('DreamSys__EndDay', internal=True)
 Tick('FrameClock__Tick', internal=True)
 PadDispatch('Pad__DispatchEvents', internal=True)
 Mark('GameApplication__RunTitleMenu', 'RunTitleMenu')
 Mark('GameApplication__RunDayTask', 'RunDayTask')
+if C.get('spawn'):
+    InitSpawn('DreamSys__InitSpawnLoc', internal=True)
 if C.get('flashback'):
     FlashbackUnlock('UpdateFlashbackLock', internal=True)
 if C.get('pktuse'):
