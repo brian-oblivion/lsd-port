@@ -160,8 +160,8 @@ Still open:
     20x20-cell footprint, wider than the view up to the fog); 2D drawn
     over the dream (pause text) is stretched. Details in
     `docs/research/host-link-surface.md` ("Widescreen (task 09)").
-  - `high-fps` (task 12, branch `task-12-smooth-pace`): `smooth = on`
-    (`--smooth`, `LSD_SMOOTH`; default off) draws a frame at every
+  - `high-fps` (task 12): `smooth = on` (`--smooth on|off`,
+    `LSD_SMOOTH`; on by default since 2026-10-06) draws a frame at every
     59.94 Hz blank between the dream's ticks, with the camera (DreamSys's
     coordinate) and every moving node blended between the last two ticks;
     a TodActor's parts (its TOD animation) and the StageMap's grid cells
@@ -173,9 +173,9 @@ Still open:
     the console. Measured (task 07): the port runs the dream at 20.0 ticks
     per second everywhere, DuckStation at 13.8 on average (12.8 to 17.8
     per stage, ~10.5 turning in the first room). `pace = N` (`--pace`,
-    `LSD_PACE`; 10 to 30, default 20) now runs the dream at N ticks a
-    second; menus, the graph and movies keep the game's own 20. The
-    operator picks the defaults after playing `pace = 14, smooth = on`.
+    `LSD_PACE`; 10 to 30) runs the dream at N ticks a second; menus, the
+    graph and movies keep the game's own 20. Default 14 with smooth on,
+    the operator's choice after playing it (2026-10-06).
     Copying the console's per-scene slowdown needs a frame-cost model psyz
     lacks. Part of the "too fast" was a port bug, fixed in task 07: forward
     and back moved by a wrong, fixed step (lsddecomp `host-actor-local-move`).

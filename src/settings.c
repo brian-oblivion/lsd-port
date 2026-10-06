@@ -3,8 +3,8 @@
 //   aspect = 4:3            the dream's width:height; wider shows more of it
 //   resolution = 1          the 3D drawn at N times 320x240, 1 to 8
 //   scale = sharp           nearest | sharp | smooth | integer
-//   pace = 20               the dream's ticks a second, 10 to 30
-//   smooth = off            frames drawn between the dream's ticks
+//   pace = 14               the dream's ticks a second, 10 to 30
+//   smooth = on             frames drawn between the dream's ticks
 // The command line (--aspect, --resolution, --scale, --pace, --smooth) and
 // the environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE,
 // LSD_SMOOTH) win over the file.
@@ -28,7 +28,7 @@ typedef struct {
     int smooth;
 } Settings;
 
-static const Settings sDefaults = {4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, PACING_PACE_DEFAULT, 0};
+static const Settings sDefaults = {4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1};
 
 static const struct {
     const char* name;
@@ -62,13 +62,13 @@ static const char sDefaultFile[] =
     "#   integer  whole multiples only, with a border\n"
     "scale = sharp\n"
     "\n"
-    "# The dream's ticks a second, 10 to 30. 20 is what the game asks for;\n"
-    "# a PlayStation managed about 14, so a dream lasted longer there.\n"
-    "pace = 20\n"
+    "# The dream's ticks a second, 10 to 30. 14 is about what a PlayStation\n"
+    "# managed; 20 is what the game asks for, faster, and a dream ends sooner.\n"
+    "pace = 14\n"
     "\n"
-    "# on: frames drawn between the dream's ticks, at the display's rate,\n"
-    "# with the camera moving smoothly. off: each tick shown as it is.\n"
-    "smooth = off\n";
+    "# on: frames drawn between the dream's ticks, at 59.94 a second, with\n"
+    "# the camera moving smoothly. off: each tick shown as it is.\n"
+    "smooth = on\n";
 
 static int ParseResolution(const char* s, int* out) {
     char* end;
@@ -185,7 +185,7 @@ int SetUpSettings(const char* savesDir, const SettingArgs* args,
         return -1;
     }
     if (args->smooth != NULL && ParseOnOff(args->smooth, &set.smooth) != 0) {
-        error("LSD_SMOOTH wants on or off (got %s)", args->smooth);
+        error("--smooth wants on or off (got %s)", args->smooth);
         return -1;
     }
 
