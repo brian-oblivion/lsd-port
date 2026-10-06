@@ -14,6 +14,8 @@ lines and screenshots shows whether they play alike (task 10).
 The config (JSON):
   seed       psyz's rand() state, set at every DreamSys__StartDay
   days       the day to set at each StartDay, in order (null: keep it)
+  spawn      [stage, index]: each day starts at sStageSpawnPoints[stage][index]
+             (tools/ds_spot.py puts the console at the same spot)
   input      [[from_tick, to_tick, "up,circle"], ...]: pad 1 while a dream
              runs, by the dream FrameClock's tick (button names as the
              debug server's)
