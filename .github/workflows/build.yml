@@ -40,22 +40,34 @@ jobs:
 
       # libsdl2-dev is not linked; it pulls in the X11/Wayland/audio headers
       # that SDL3's own build needs, as psyz's CI does. i686 needs the
-      # multilib compiler and those packages' i386 builds.
+      # multilib compiler and i386 headers; libsdl2-dev:i386 is out since
+      # Ubuntu's libglib2.0-dev:i386, which it pulls in, stopped installing
+      # beside the amd64 one, so it gets the X11 (and extensions) and ALSA
+      # headers directly.
       - name: Install requirements
         run: |
           if [ "${{ matrix.arch }}" = i686 ]; then
             sudo dpkg --add-architecture i386
-            pkgs="gcc-multilib g++-multilib libsdl2-dev:i386 libxtst-dev:i386 mesa-vulkan-drivers:i386"
+            pkgs="gcc-multilib g++-multilib libx11-dev:i386 libxext-dev:i386 libxtst-dev:i386 libxcursor-dev:i386 libxi-dev:i386 libxrandr-dev:i386 libxfixes-dev:i386 libxss-dev:i386 libasound2-dev:i386 mesa-vulkan-drivers:i386"
           else
             pkgs="libsdl2-dev libxtst-dev mesa-vulkan-drivers"
           fi
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build $pkgs
+          # apt's complaint as an annotation, readable without the log
+          if ! sudo apt-get install -y build-essential cmake ninja-build $pkgs > apt.log 2>&1; then
+            cat apt.log
+            echo "::error::$(grep -E '^E:|Depends:|but .* is to be installed|has no installation candidate|Unable to locate' apt.log | head -n 12 | tr '\n' '|')"
+            exit 1
+          fi
 
       - name: Configure
-        run: >
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DLSD_ARCH=${{ matrix.arch }}
+        run: |
+          if ! cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DLSD_ARCH=${{ matrix.arch }} > configure.log 2>&1; then
+            cat configure.log
+            echo "::error::$(grep -A4 'CMake Error' configure.log | head -n 20 | tr '\n' '|')"
+            exit 1
+          fi
 
       - name: Build
         shell: bash
@@ -85,6 +97,51 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: lsd-linux-${{ matrix.arch }}
+          path: build/lsd
+
+  # macOS on Apple Silicon (arm64), with Apple's Clang and SDL3's GPU
+  # renderer on Metal, as psyz's own CI builds it.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submodules
+        run: |
+          git submodule update --init decomp psyz
+          git -C psyz submodule update --init external/SDL external/cimgui
+
+      - name: Install requirements
+        run: brew install cmake ninja
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        shell: bash
+        run: cmake --build build 2>&1 | tee build.log
+
+      - name: Pointer-width warnings
+        run: |
+          n=$(grep -c 'pointer-to-int-cast\|int-to-pointer-cast\|int-to-void-pointer-cast' build.log || true)
+          echo "macos: $n pointer-width warnings" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$n" -eq 0
+
+      # As on Linux: no disc, so lsd must say so and exit with 2. macOS has
+      # no timeout(1); perl's alarm stands in.
+      - name: Smoke test (no disc)
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: |
+          set +e
+          perl -e 'alarm 60; exec @ARGV' ./build/lsd --frames 60 2> stderr.txt
+          status=$?
+          cat stderr.txt
+          test "$status" -eq 2 && grep -q 'no disc image' stderr.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsd-macos-arm64
           path: build/lsd
 
   # Windows, cross-compiled with MinGW on Linux. It is only built here, not

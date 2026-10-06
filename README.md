@@ -13,6 +13,7 @@ and the special-day movies. The Windows build has been checked under Wine
 itself. Against the console (DuckStation as the reference) sound and
 picture match, apart from what "Known differences" lists. The 32-bit
 builds (i686) play the same, frame for frame, and can still be built.
+macOS (Apple Silicon) builds, but has not been played on a Mac yet.
 
 The game's C compiles and links against the platform layer,
 [psyz](https://github.com/Xeeynamo/psyz) (through the fork
@@ -240,6 +241,18 @@ switch to the other):
 ```sh
 cmake -S . -B build-i686 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLSD_ARCH=i686
 cmake --build build-i686
+```
+
+macOS (Apple Silicon), with the Xcode command line tools
+(`xcode-select --install`) and Homebrew's `cmake` and `ninja`: the same
+commands as on Linux, and SDL3 draws through Metal. CI builds it on every
+push, but it has not yet been played on a Mac; please report how it goes.
+
+```sh
+brew install cmake ninja
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build
+./build/lsd --disc /path/to/disc.cue
 ```
 
 Windows, cross-compiled from Linux with MinGW (`mingw-w64`; 64-bit is

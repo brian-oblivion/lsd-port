@@ -134,8 +134,10 @@ Still open:
 
 ### Later (not needed for "playable")
 
-- 64-bit clean: done (task 10), and the default since task 11. Left: a
-  macOS or ARM64 build, which starts from it.
+- 64-bit clean: done (task 10), and the default since task 11.
+- macOS: builds in CI on Apple Silicon (arm64, Clang, SDL3 on Metal) and
+  passes the no-disc smoke test; not yet played on a Mac, and no release
+  archive (signing, an app bundle) yet.
 - Enhancements a port can have and the decomp cannot, each behind an
   option that defaults to the console's behaviour, with the decomp kept
   byte-exact (`#ifdef PLATFORM_PC` hooks or psyz settings):
