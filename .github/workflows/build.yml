@@ -60,9 +60,13 @@ jobs:
           fi
 
       - name: Configure
-        run: >
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DLSD_ARCH=${{ matrix.arch }}
+        run: |
+          if ! cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DLSD_ARCH=${{ matrix.arch }} > configure.log 2>&1; then
+            cat configure.log
+            echo "::error::$(grep -A4 'CMake Error' configure.log | head -n 20 | tr '\n' '|')"
+            exit 1
+          fi
 
       - name: Build
         shell: bash
