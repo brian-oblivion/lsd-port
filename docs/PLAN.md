@@ -138,6 +138,18 @@ Still open:
 - macOS: builds in CI on Apple Silicon (arm64, Clang, SDL3 on Metal) and
   passes the no-disc smoke test; not yet played on a Mac, and no release
   archive (signing, an app bundle) yet.
+- Texel choice against the console (found in task 13, 2026-10-06): since
+  psyz samples each pixel at the PS1's sample point, the speckles are
+  gone, but on noisy ground textures many single pixels still show the
+  neighbouring texel of the console's (about 60 % of ground pixels differ
+  by more than one 5-bit step from DuckStation at Natural World, day 5,
+  spawn 3/30; dithering is part of it). The PS1 interpolates UVs per
+  pixel in fixed point and rounds differently from the GPU's float
+  interpolation. Matching it means doing the PS1's UV setup in the
+  shader (per-primitive gradients, its rounding) and comparing against
+  DuckStation's software renderer with dithering off;
+  `tools/ds_spot.py` and lockstep's `spawn` put both at the same spot.
+  Not visible as an artefact, so low priority.
 - Enhancements a port can have and the decomp cannot, each behind an
   option that defaults to the console's behaviour, with the decomp kept
   byte-exact (`#ifdef PLATFORM_PC` hooks or psyz settings):

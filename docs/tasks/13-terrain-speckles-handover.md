@@ -79,22 +79,31 @@ speckle; not pursued.
 Branches: `gpu-texel-sample-point` from `upstream/main` (for an upstream
 PR, the operator's call), and the same commit as
 `gpu-texel-sample-point-lsd` from the fork's `main`, merged into `main`
-(`58e73b8`). lsd-port's `psyz/` pin moves to it. psyz host tests: 319
+(`58e73b8`, then `2af13ca` with the headers below). lsd-port's `psyz/`
+pin moves to it. psyz host tests: 319
 (Vulkan) and 38 (GL gpu) pass on the fork's `main`, the same as before;
 342 on the upstream-based branch.
 
-**Not done: MSL and DXIL.** Only the SPIR-V headers are regenerated
-(glslangValidator here reproduces the committed SPIR-V byte for byte from
-the old sources). `build_shaders.sh` also needs `spirv-cross` (Metal) and
-`dxc` (D3D12), which aren't installed; both are in Arch's `extra`. Until
-then a Metal or D3D12 build runs the old shaders without `FixupFlipUV`:
-no fix, and flipped UVs one texel off. `sdl3_gpu.c` picks the format at
-compile time (`_WIN32`: DXIL, Apple: MSL, else SPIR-V), so **every Windows
-build of the fork's `main` is affected**, whichever SDL backend runs.
-lsd-port's `main` still pins the old psyz, so nothing released changes
-until `task-13-speckles` is merged; the headers must be regenerated first
-(or the Windows package switched to the GL renderer, which needs no
-precompiled shaders).
+**Metal and D3D12 headers** (two more commits, `gpu: regenerate the
+Metal shader headers` and `... D3D12 ...`, on both branches; fork `main`
+is now `2af13ca`). `sdl3_gpu.c` picks the format at compile time
+(`_WIN32`: DXIL, Apple: MSL, else SPIR-V), so Windows needed them.
+
+- SPIR-V and MSL: glslangValidator and spirv-cross (Arch) reproduce the
+  committed headers byte for byte from the previous sources.
+- DXIL: Arch's `directx-shader-compiler` 1.10.2605.37 asserts on any
+  shader (an LLVM `HasHungOffUses` assertion), so the headers come from
+  Microsoft's Linux release, DXC v1.9.2609
+  (`linux_dxc_2026_09_28.x86_x64.tar.gz`, unpacked in the scratchpad, not
+  installed), which signs through its own `libdxil.so`. From the previous
+  sources its output is signed and instruction-for-instruction the
+  committed one (`dxc -dumpbin`), differing only in compiler metadata and
+  hash; so the unchanged `clear_*` headers were left alone. The new
+  fragment shader has no derivative ops (the old had two).
+- No `xxd` here: a Python `xxd -i` stand-in, checked by those identical
+  regenerations.
+
+Windows builds (x86_64 MinGW) with the new headers; not run.
 
 ## Checks
 
@@ -160,8 +169,10 @@ The console at the same spot (`tools/ds_spot.py`, new):
 
 ## What's left
 
-- MSL and DXIL headers (above).
-- Upstream PR from `gpu-texel-sample-point`: the operator's call, and it
-  changes hardware-matched behaviour, so the maintainer may want a PS1
-  hardware run of the gpu tests (`make test-ps1-hw`) first.
-- Texel choice against the console's fixed-point interpolation (above).
+- Upstream PR from `gpu-texel-sample-point` (three commits; the first's
+  message still says MSL and DXIL are to do): the operator handles it
+  separately. It changes hardware-matched behaviour, so the maintainer may
+  want a PS1 hardware run of the gpu tests (`make test-ps1-hw`).
+- Running a Windows or macOS build.
+- Texel choice against the console's fixed-point interpolation: in
+  PLAN.md's "Later".
