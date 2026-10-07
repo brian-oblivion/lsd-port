@@ -21,9 +21,11 @@ concurrency:
 
 jobs:
   # The default build, x86_64, and i686, which keeps the PS1-sized layouts
-  # checked. Pointer-width warnings stay at 0 at both widths.
+  # checked. Pointer-width warnings stay at 0 at both widths. The Linux jobs
+  # run on the release's image (release.yml), not ubuntu-latest, which moves
+  # to 26.04 on 2026-10-19.
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -147,7 +149,7 @@ jobs:
   # Windows, cross-compiled with MinGW on Linux. It is only built here, not
   # run. i686 uses the port's toolchain file, x86_64 psyz's.
   windows-mingw:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
