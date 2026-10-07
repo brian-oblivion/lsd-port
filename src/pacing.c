@@ -27,6 +27,11 @@
 //    buffers move on. A move too large for one tick (a link, a respawn) is
 //    not blended, and a grid cell's moves are not either, only its scale
 //    (BlendKind).
+//  - with a frame_rate other than the console's (smooth on), the passes are
+//    the display's instead: each presents at that rate (Psyz_VideoPresent),
+//    a tick comes when its time has come (pace * 59.94 / 60 a second, as
+//    above), and the passes between draw the world as far between the two
+//    ticks as their time is (TimedPass).
 // Menus, the post-day graph and the movies keep the game's own loop.
 //
 // Built with the game's C (it needs DayTask's and DrawSystem's method
@@ -44,6 +49,7 @@
 #include <libetc.h>
 #include <psyz/system.h>
 #include <psyz/video.h>
+#include <SDL3/SDL_timer.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,6 +66,10 @@
 
 static int sPace = PACING_PACE_GAME;
 static int sSmooth;
+static int sFrameRate = PACING_FRAME_RATE_CONSOLE;
+
+// The fraction of a tick an in-between frame is drawn at, in the timed loop.
+#define BLEND_STEPS 4096
 
 static void (*sDayTaskOnInit)(DayTask* self, s32 a, s32 b, s32 c);
 static void (*sDayTaskOnDeinit)(DayTask* self);
@@ -404,6 +414,49 @@ static void DrawInBetween(int i, int n) {
     Restore();
 }
 
+// The rate a timed dream presents at.
+static double PresentRate(void) {
+    if (sFrameRate == PACING_FRAME_RATE_DISPLAY) {
+        double hz = Psyz_VideoGetDisplayRate();
+        return hz > 0.0 ? hz : PACING_BLANK_RATE;
+    }
+    return sFrameRate;
+}
+
+// The timed loop's schedule, in SDL's nanoseconds: when the last tick was
+// due and when the next one is; lastTick 0 before the first.
+static Uint64 sLastTick;
+static Uint64 sNextTick;
+
+// One pass of the timed loop: presents, then either draws the frame between
+// the ticks that the time says (returns 0) or says a tick is due (returns
+// 1). A tick that comes late is not caught up on: the next one is due a
+// tick's time after it, as the console slows down rather than hurrying.
+static int TimedPass(void) {
+    Uint64 interval = (Uint64)(1e9 * TICK_PHASE / (sPace * PACING_BLANK_RATE));
+    Uint64 now;
+
+    Psyz_VideoPresent(PresentRate());
+    now = SDL_GetTicksNS();
+    if (sLastTick == 0) {
+        sLastTick = now;
+        sNextTick = now + interval;
+        return 1;
+    }
+    if (now < sNextTick) {
+        DrawInBetween((int)((now - sLastTick) * BLEND_STEPS / (sNextTick - sLastTick)),
+                      BLEND_STEPS);
+        return 0;
+    }
+    sLastTick = sNextTick;
+    sNextTick += interval;
+    if (now >= sNextTick) {
+        sLastTick = now;
+        sNextTick = now + interval;
+    }
+    return 1;
+}
+
 // DrawSystem__RunLoop with the dream paced here.
 static void PacedRunLoop(DrawSystem* self) {
     int phase = 0;
@@ -416,6 +469,12 @@ static void PacedRunLoop(DrawSystem* self) {
             phase = 0;
             pass = 0;
             interval = 1;
+            sLastTick = 0;
+        } else if (sSmooth && sFrameRate != PACING_FRAME_RATE_CONSOLE) {
+            if (!TimedPass()) {
+                continue;
+            }
+            Psyz_VSyncRunCallbacks(self->vsyncCount);
         } else {
             Psyz_VideoVSync(0);
             phase += sPace;
@@ -460,12 +519,13 @@ static void PacedDayTaskOnDeinit(DayTask* self) {
     sDayTaskOnDeinit(self);
 }
 
-void Pacing_Init(int pace, int smooth) {
+void Pacing_Init(int pace, int smooth, int frameRate) {
     if (pace == PACING_PACE_GAME && !smooth) {
         return; // the game's own pacing
     }
     sPace = pace;
     sSmooth = smooth;
+    sFrameRate = frameRate;
     gDrawSystemMethods.runLoop = PacedRunLoop;
     sDayTaskOnInit = gDayTaskMethods.onInit;
     sDayTaskOnDeinit = gDayTaskMethods.onDeinit;
