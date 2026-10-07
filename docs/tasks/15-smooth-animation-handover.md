@@ -65,7 +65,10 @@ whole dream is blended now; `smooth = off` keeps the console's look.
 - A looping TOD animation snaps from its last frame to its first on the
   console. Blended, that step is drawn like any other when the two poses
   are within 45 degrees (and 4096, and a scale of 1.0); a larger one is a
-  jump. Not looked at in pictures: worth a look while playing.
+  jump. Measured on days 22 and 340 (about 2400 part moves, loops
+  included): 97 % of rotations under 64 a tick (5.6 degrees), the largest
+  192 to 255, no part translation at all; nothing near the threshold. Not
+  looked at in pictures: worth a look while playing.
 - Frame times (RelWithDebInfo x86_64, 59.94 Hz, psyz draw time, Kyoto and
   Natural World, standing and turning): medians 253 to 303 µs against 253
   to 371 for task 14's build, within run-to-run noise. A first version
