@@ -13,10 +13,12 @@ why it is its own project, as the ports of sm64 (sm64-port, sm64ex) and of
 oot/mm (Ship of Harkinian) are. sotn-decomp is the in-repo counter-example:
 it builds its PC version from `src/pc/` and links psyz as a submodule.
 
-## What the port has to replace (measured in lsddecomp)
+## What the port had to replace (measured in lsddecomp, 2026-09-29)
+
+Kept as the starting point; tracks 2 to 4 below have closed every item.
 
 - **Every game function is C** (`python3 tools/progress.py`: 100% of game
-  code) and compiles with the PS1 toolchain. None of it has been compiled
+  code) and compiles with the PS1 toolchain. None of it had been compiled
   for a host yet.
 - **The Psy-Q SDK is linked from Sony's own objects**: 178 MIPS `.o` files
   (`config/psyq-objects.txt`). None of that can run on a PC, so the port
@@ -43,6 +45,12 @@ it builds its PC version from `src/pc/` and links psyz as a submodule.
 
 Each track is a checklist; an item is done when its sentence is true and
 measured. Items marked *decision* are the operator's.
+
+Tracks 1 to 4 are done: the game builds from lsddecomp's C for Linux,
+Windows and macOS, and plays on Linux and Windows from the user's disc
+image, with sound, movies and saves, checked against DuckStation as the
+console reference (tasks 01 to 06; releases `v0.1` 2026-10-04 and `v0.2`
+2026-10-06). What follows them is under "Later".
 
 ### 1. Design
 
@@ -80,25 +88,11 @@ Decided (2026-10-02), so not reopened without the operator:
   pacing, the port's instant loading, host-GPU rasterisation) are
   accepted.
 
-Still open:
+The design questions the track opened with (platform layer, renderer,
+audio, disc access, build, where shared-C changes go, licence) are all
+answered in that list; the operator approved it on 2026-10-02.
 
-- `design`: `docs/design.md` answers, with a recommendation each:
-  - the platform layer: **psyz** (Xeeynamo's Psy-Q reimplementation for PC,
-    used by sotn-decomp's PC build) against one written for this game;
-    measure what psyz covers of the ~290 calls, and check its licence;
-  - the renderer: an OpenGL (or SDL_gpu/Vulkan) GPU of ordering tables and
-    primitives with a VRAM model, or a software rasteriser of the PS1 GPU;
-  - audio: an SPU emulation fed by the game's own libsnd calls, or libsnd
-    reimplemented on SDL audio; CD-DA/XA and the MDEC movies;
-  - disc access: reading the user's `.bin/.cue` (ISO9660 plus XA sectors);
-  - the build (CMake or Make) and how it pulls lsddecomp's sources;
-  - where changes to the shared C go: upstream to lsddecomp (they must stay
-    byte-exact there: `#ifdef HOST_BUILD` only where C cannot be shared)
-    or as patches here;
-  - the licence, compatible with psyz's and lsddecomp's.
-- `approach` (*decision*): the operator approves the design.
-
-### 2. The game's C builds for Linux
+### 2. The game's C builds for Linux (done, task 01)
 
 - `submodule`: lsddecomp pinned as `decomp/`; the build compiles every game
   `.c` from it with the host compiler (`-DHOST_BUILD`), with zero errors,
@@ -110,7 +104,7 @@ Still open:
   pointer width. Changes that belong upstream land in lsddecomp with
   `./build-and-verify.sh` green there.
 
-### 3. The platform layer
+### 3. The platform layer (done, tasks 01 to 05)
 
 - `gpu`: the libgpu/libgs calls the game makes (ordering tables, primitives,
   VRAM transfers, TIM loads, display and draw environments) drawn on the
@@ -123,7 +117,7 @@ Still open:
 - `movies`: the MDEC stream decode for the intro, ending and special days.
 - `card`: libcard/libapi memory card calls backed by save files.
 
-### 4. Playable on Linux
+### 4. Playable on Linux (done, tasks 03 to 06)
 
 - `boots`: from the user's disc image to the title menu.
 - `plays`: a day start to finish: the dream, links, flashbacks, the graph,
@@ -153,25 +147,24 @@ Still open:
 - Enhancements a port can have and the decomp cannot, each behind an
   option that defaults to the console's behaviour, with the decomp kept
   byte-exact (`#ifdef PLATFORM_PC` hooks or psyz settings):
-  - `resolution` (branch `widescreen`, task 09): `--resolution N`,
+  - `resolution` (task 09): `--resolution N`,
     psyz's internal resolution; the menu, movies and pause text checked
     at 4.
-  - `scaling` (branch `widescreen`, 2026-10-04): `scale = sharp`
+  - `scaling` (2026-10-04): `scale = sharp`
     (default), `nearest`, `smooth` or `integer`; psyz's present step.
     Sharp (integer nearest prescale, then bilinear) fixes the uneven
     pixels nearest gives at window sizes that are not whole multiples,
     worst in the menu text. Upscaling filters (xBR and the like) not
     done; AI upscaling is ruled out by the operator.
-  - `settings` (branch `widescreen`): `settings.ini` in the saves folder
-    holds aspect, resolution and scale, under the command line and
-    environment, so a double-clicked `lsd.exe` can use them.
-  - `widescreen` (branch `widescreen`, task 09, not on `main` yet):
-    `--aspect 16:9`, anamorphic. psyz's GTE squeezes projected X by 3/4
-    in the dream and the display stretches it back; the 2D screens stay
-    4:3 with bars. No edge culling to widen was found (the map draws a
-    20x20-cell footprint, wider than the view up to the fog); 2D drawn
-    over the dream (pause text) is stretched. Details in
-    `docs/research/host-link-surface.md` ("Widescreen (task 09)").
+  - `settings`: `settings.ini` in the saves folder holds aspect,
+    resolution, scale, pace, smooth and draw_distance, under the command
+    line and environment, so a double-clicked `lsd.exe` can use them.
+  - `widescreen` (task 09): `--aspect 16:9`, anamorphic. psyz's GTE
+    squeezes projected X by 3/4 in the dream and the display stretches it
+    back; the 2D screens stay 4:3 with bars. No edge culling to widen was
+    found (the map draws a 20x20-cell footprint, wider than the view up to
+    the fog); 2D drawn over the dream (pause text) is stretched. Details
+    in `docs/research/host-link-surface.md` ("Widescreen (task 09)").
   - `high-fps` (task 12): `smooth = on` (`--smooth on|off`,
     `LSD_SMOOTH`; on by default since 2026-10-06) draws a frame at every
     59.94 Hz blank between the dream's ticks, with the camera (DreamSys's
