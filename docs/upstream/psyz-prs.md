@@ -395,3 +395,69 @@ keyboard and returns -1. The port uses it for `controls.ini` (README,
 default binding, several keys on one button, Escape as START (pause, the
 process stays), Escape unbound (quits), the close button. No host test:
 it needs SDL keyboard state.
+
+## `gpu-texel-sample-point`: take a pixel's texel where the PS1 does
+
+From `4e4b3e8`, three commits; rebases cleanly onto `upstream/main`
+`6fb06b2` (checked 2026-10-07). Ready to send.
+
+Textured 3D faces seen at a grazing angle showed stray texels along
+their edges (other tiles, other colours) in both SDL3 renderers. Two
+things disagreed about where a pixel samples:
+
+- Vertices sat on pixel corners, so the GPU tested coverage and
+  interpolated the UV at each pixel's centre, while the PS1 does both at
+  the pixel's integer position. `resolveTexel` moved the UV back by
+  `0.5 * (abs(dFdx(u)), abs(dFdy(v)))` to make up for it, which holds only
+  for axis-aligned, unflipped mappings: it moves the wrong way when u
+  falls across the screen and ignores `dFdy(u)` and `dFdx(v)`, several
+  texels per pixel on oblique faces. At a face's edge that reads outside
+  the face's texture.
+- `FixupFlipUV` added one to every UV of a face whose UVs run against
+  its screen axes, which on a 3D face reads one texel past its edge.
+
+The change: the vertex shaders move everything but lines half a render
+pixel (`samplePoint`, in the UBO's two spare floats on SDL_GPU, a uniform
+on GL), so the pixel centre the GPU tests is the PS1's sample point at 1x
+(inside the PS1 pixel from that point at Nx); coverage and UV come from
+the same point, so a covered pixel's UV is always inside its primitive.
+`resolveTexel` is `floor(rawUV + 1/512)`, without derivatives.
+`FixupFlipUV` is gone: the hardware-captured flipped-UV tests pass
+without it. Lines (already laid out around pixel centres) carry a
+`TPAGE_LINE` vertex flag and aren't moved; moving them failed
+`draw_lines`. SPIR-V and MSL headers regenerated with glslangValidator
+and spirv-cross (they reproduce the old headers byte for byte from the
+old sources); DXIL with Microsoft's DXC 1.9.2609 Linux release, whose
+output for the old sources matches the committed headers instruction for
+instruction (`dxc -dumpbin`).
+
+Tests: no new one (the existing flipped-UV and line tests cover the
+paths changed); host tests 342 pass on the upstream-based branch. Seen
+against DuckStation's software renderer at the same spot in the game:
+the stray texels are gone and the edges of textured paths fall where the
+console draws them. Not tried on PSP or PS1 hardware (no shader there).
+
+## `vsync-run-callbacks`: `Psyz_VSyncRunCallbacks`
+
+From the fork's `main` (`afed8f3`), one commit; `psyz/system.h` and
+`libapi.c`, which have fork-only changes before it (`libapi-vsync-n`), so
+it would need rebasing after that one. `Psyz_VSyncRunCallbacks(n)` runs
+what `VSync(n)` runs once its wait is over (the pads and the debug
+server's hook once, the `VSyncCallback`s n times), for a game loop that
+does its own waiting, as lsd-port's paced dream does (one present per
+blank, a tick every few). No host test: callbacks only.
+
+## `present-rate`: `Psyz_VideoPresent`, presenting at a rate of the caller's
+
+From the fork's `main` (`afed8f3`), one commit; `sdl3_common.h`'s timing
+code has fork-only changes, so this needs rebasing after them, or waits.
+`Psyz_VideoPresent(fps)` presents and paces the next frame at `fps`: the
+driver's VSync when the display refreshes at about that rate (or VSync is
+forced on), else the frame limiter; no VSync callbacks.
+`Psyz_VideoVSync` switches the driver VSync back to what its 59.94 pacing
+wants; `Psyz_VideoGetDisplayRate` reports the window's display. For a
+game that draws frames between its own ticks at the display's refresh
+rate (lsd-port's `frame_rate = display`). The PSP backend presents at
+its blank. No host test: timing and present modes. Measured headless
+with the limiter at 144 (144.1 frames a second); the driver-VSync path
+on a high-refresh display is untested.
