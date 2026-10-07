@@ -5,11 +5,13 @@
 //   scale = sharp           nearest | sharp | smooth | integer
 //   pace = 14               the dream's ticks a second, 10 to 30
 //   smooth = on             frames drawn between the dream's ticks
-// The command line (--aspect, --resolution, --scale, --pace, --smooth) and
-// the environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE,
-// LSD_SMOOTH) win over the file.
+//   draw_distance = 1       the dream's fog N times further away, 1 to 4
+// The command line (--aspect, --resolution, --scale, --pace, --smooth,
+// --draw-distance) and the environment (LSD_ASPECT, LSD_RESOLUTION,
+// LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_DRAW_DISTANCE) win over the file.
 
 #include "settings.h"
+#include "draw_distance.h"
 #include "ini.h"
 #include "pacing.h"
 #include "widescreen.h"
@@ -26,9 +28,10 @@ typedef struct {
     PsyzScaleMode scale;
     int pace;
     int smooth;
+    int drawDistance;
 } Settings;
 
-static const Settings sDefaults = {4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1};
+static const Settings sDefaults = {4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1, 1};
 
 static const struct {
     const char* name;
@@ -43,8 +46,9 @@ static const struct {
 
 static const char sDefaultFile[] =
     "# LSD: Dream Emulator settings. The command line (--aspect, --resolution,\n"
-    "# --scale, --pace, --smooth) and the environment (LSD_ASPECT,\n"
-    "# LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH) win over this file.\n"
+    "# --scale, --pace, --smooth, --draw-distance) and the environment\n"
+    "# (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,\n"
+    "# LSD_DRAW_DISTANCE) win over this file.\n"
     "# Delete it to get the defaults back.\n"
     "\n"
     "# The dream's width:height. 4:3 is the console's picture; a wider one,\n"
@@ -68,7 +72,12 @@ static const char sDefaultFile[] =
     "\n"
     "# on: frames drawn between the dream's ticks, at 59.94 a second, with\n"
     "# the camera moving smoothly. off: each tick shown as it is.\n"
-    "smooth = on\n";
+    "smooth = on\n"
+    "\n"
+    "# How far the dream shows before it fades into the fog, 1 to 4: the fog\n"
+    "# N times further away, never past the clearest a stage has. 1 is the\n"
+    "# console's.\n"
+    "draw_distance = 1\n";
 
 static int ParseResolution(const char* s, int* out) {
     char* end;
@@ -94,6 +103,16 @@ static int ParsePace(const char* s, int* out) {
     char* end;
     long n = strtol(s, &end, 10);
     if (*s == '\0' || *end != '\0' || n < PACING_PACE_MIN || n > PACING_PACE_MAX) {
+        return -1;
+    }
+    *out = (int)n;
+    return 0;
+}
+
+static int ParseDrawDistance(const char* s, int* out) {
+    char* end;
+    long n = strtol(s, &end, 10);
+    if (*s == '\0' || *end != '\0' || n < DRAW_DISTANCE_MIN || n > DRAW_DISTANCE_MAX) {
         return -1;
     }
     *out = (int)n;
@@ -142,6 +161,12 @@ static int ApplySetting(void* ctx, const char* name, char* value, const char* pa
             return 0;
         }
         fprintf(stderr, "lsd: %s:%d: smooth wants on or off\n", path, lineNo);
+    } else if (SDL_strcasecmp(name, "draw_distance") == 0) {
+        if (ParseDrawDistance(value, &set->drawDistance) == 0) {
+            return 0;
+        }
+        fprintf(stderr, "lsd: %s:%d: draw_distance wants %d to %d\n", path, lineNo,
+                DRAW_DISTANCE_MIN, DRAW_DISTANCE_MAX);
     } else {
         fprintf(stderr, "lsd: %s:%d: no setting %s\n", path, lineNo, name);
     }
@@ -188,10 +213,17 @@ int SetUpSettings(const char* savesDir, const SettingArgs* args,
         error("--smooth wants on or off (got %s)", args->smooth);
         return -1;
     }
+    if (args->drawDistance != NULL &&
+        ParseDrawDistance(args->drawDistance, &set.drawDistance) != 0) {
+        error("--draw-distance wants %d to %d (got %s)", DRAW_DISTANCE_MIN, DRAW_DISTANCE_MAX,
+              args->drawDistance);
+        return -1;
+    }
 
     Widescreen_Init(set.aspect);
     Psyz_VideoSetInternalResolution((unsigned)set.resolution);
     Psyz_VideoSetScaleMode(set.scale);
     Pacing_Init(set.pace, set.smooth);
+    DrawDistance_Init(set.drawDistance);
     return 0;
 }

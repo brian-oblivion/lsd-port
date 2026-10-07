@@ -357,3 +357,66 @@ comes a blank late doesn't show).
   pacing 338 µs per tick frame. Uncapped, pace 14 with smooth runs 3700
   frames a second in a dream. i686 Release, pace 14 with smooth: 59.9 and
   13.99, 488 µs.
+
+## Draw distance (task 14, 2026-10-06)
+
+`draw_distance = N` (README, "Picture"; `--draw-distance`,
+`LSD_DRAW_DISTANCE`), 1 to 4, default 1: the dream's fog N times further
+away, never past 26624, the clearest fog the game uses. `src/draw_distance.c`
+wraps `gNodeGuardedViewportMethods.setFogNear`, as `widescreen.c` and
+`pacing.c` wrap methods; at 1 it installs nothing. Measurements and the
+other limits are in `docs/tasks/14-draw-distance-handover.md`.
+
+### What ends the view
+
+- **The fog.** A stage's style config picks `fogNear` from
+  `sStyleFogNears` (26624, 20480, 14336, 8192, 4096; the sixth, 2048, is
+  never picked). `SetFogNear(fogNear, h)` sets the GTE's depth cue so that
+  dp is 0 at fogNear and ONE at five times it; textured faces take
+  `dp >> 9` palette rows of the stage's fog colours, the others are cued
+  by the GTE, and `TransformAndCullPoly` drops a face at dp = ONE. Five
+  times 26624, 20480 and 14336 is past the GTE's depth range (SZ
+  saturates at 65535, where dp is still below ONE), so only levels 3
+  (8192: culled at 40960) and 4 (4096: at 20480) cull anything.
+- **The footprint.** The StageMap draws 20 x 20 cells (2048 each,
+  `gridSpan` 40960) from the player's cell forward, axis-aligned by
+  quadrant and shifted toward the look direction. Its far edge is
+  38912 to 40960 ahead: exactly where level 3's fog culls, so on the
+  console a footprint edge shows only on levels 0 to 2, as a straight
+  horizon against the sky.
+- Not limits: the OT (8192 tags, `otShift` 3, covers all of 0..65535),
+  the near clip (10), the projection (h 266), faces past 65535 (flagged
+  SZ-saturated and subdivided, not dropped), the chunk ring (seven
+  chunks of 20 x 20 cells around the player's, which the footprint never
+  leaves).
+
+Which level a day gets: the stages with a fixed config (5 to 12) have
+level 0 or 2. The others (Bright Moon Cottage, Pit & Temple, Kyoto,
+Natural World, Happy Town, Monument Park) pick by day + stage
+(`PickStyleFallbackConfig`): about 30 % of days level 3, 3 % level 4,
+the rest 0 to 2.
+
+### Why 26624
+
+`SetFogNear` puts -320 * fogNear / h into DQA, a 16-bit register; at the
+dream's h (266) fogNear above 27238 wraps it. 26624 is the largest the game
+itself uses, so the farthest setting looks like its clearest stages: the
+ground runs to the footprint's edge, partly fogged. Drawing beyond that
+edge means a wider footprint (handover, "The footprint"), which is not
+cheap.
+
+### Measured
+
+- Lockstep (x86_64 Debug, pace 14, smooth on, seed 4321): eight spots
+  (Natural World, Kyoto, Happy Town and Monument Park, each on a level-3
+  and a level-4 day) walking for 700 ticks, through links into four more
+  stages: `main`, the branch at 1 and the branch at 4 print the same 50
+  STATE and 8 SAVEBLK lines, and the 48 freeze screenshots at 1 are
+  byte-identical to `main`'s. Two of them with a STATE line every tick
+  (688 each, six stages): the same at 4 as on `main`.
+- Frame times (RelWithDebInfo x86_64, 59.94 Hz with `LSD_VSYNC=off`,
+  psyz's draw time, 12 s standing and 12 s turning): medians 200 to
+  400 µs per frame at 1 and at 4 alike, out of 16 683; the differences
+  between the two (-80 to +60 µs) are within what one run differs from the
+  next. The GTE work is the same: the footprint's cells are transformed
+  either way, and the fog only decides whether a face is submitted.

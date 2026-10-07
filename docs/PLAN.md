@@ -194,5 +194,16 @@ Still open:
   - `controls` (done, task 07): `controls.ini` in the saves folder,
     `layout = modern` (WASD or arrows, the default) or `classic`, and
     per-button keys; psyz `Psyz_PadsSetKeyboardMap`.
+  - `draw-distance` (task 14): `draw_distance = N` (`--draw-distance`,
+    `LSD_DRAW_DISTANCE`; 1 to 4, default 1) moves the dream's fog N times
+    further away, never past 26624, the clearest fog the game uses (the
+    GTE's 16-bit DQA allows about 27238). Only fog levels 3 and 4 (8192,
+    4096; about a third of the days on the six stages without a fixed
+    style) cull before the map's footprint, 20 cells ahead; past that the
+    footprint's straight edge ends the view, as on the console's clear
+    stages. Drawing beyond it needs a wider footprint and a second ring of
+    map chunks (StageMap's tracking rewritten), not done. Lockstep shows
+    identical state at 1 and 4. `src/draw_distance.c`, `docs/design.md`
+    ("Draw distance").
   - `mouse-look`: dropped by the operator (2026-10-04).
   - bug fixes behind options.
