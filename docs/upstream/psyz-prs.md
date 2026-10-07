@@ -432,7 +432,9 @@ output for the old sources matches the committed headers instruction for
 instruction (`dxc -dumpbin`).
 
 Tests: no new one (the existing flipped-UV and line tests cover the
-paths changed); host tests 342 pass on the upstream-based branch. Seen
+paths changed); host tests (Debug, SDL_GPU, offscreen) 343 pass and 1 is
+skipped on the branch rebased onto `6fb06b2`, the same as `6fb06b2`
+alone (2026-10-07). Seen
 against DuckStation's software renderer at the same spot in the game:
 the stray texels are gone and the edges of textured paths fall where the
 console draws them. Not tried on PSP or PS1 hardware (no shader there).
