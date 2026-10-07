@@ -137,12 +137,13 @@ int main(int argc, char** argv) {
     // libcd reads. The game needs it from its first file on.
     const char* disc = getenv("LSD_DISC");
     const char* saves = getenv("LSD_SAVES");
-    // --aspect W:H, --resolution N, --scale MODE, --pace N, --smooth on|off
-    // (or LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH):
-    // the picture and the dream's pacing, over settings.ini (src/settings.c).
+    // --aspect W:H, --resolution N, --scale MODE, --pace N, --smooth on|off,
+    // --draw-distance N (or LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE,
+    // LSD_SMOOTH, LSD_DRAW_DISTANCE): the picture and the dream's pacing, over
+    // settings.ini (src/settings.c).
     SettingArgs settings = {
         getenv("LSD_ASPECT"), getenv("LSD_RESOLUTION"), getenv("LSD_SCALE"),
-        getenv("LSD_PACE"),   getenv("LSD_SMOOTH"),
+        getenv("LSD_PACE"),   getenv("LSD_SMOOTH"),     getenv("LSD_DRAW_DISTANCE"),
     };
     for (int i = 1; i < argc - 1; i++) {
         const char* value = argv[i + 1];
@@ -162,6 +163,8 @@ int main(int argc, char** argv) {
             settings.pace = value;
         } else if (strcmp(argv[i], "--smooth") == 0) {
             settings.smooth = value;
+        } else if (strcmp(argv[i], "--draw-distance") == 0) {
+            settings.drawDistance = value;
         }
     }
     if (disc == NULL) {

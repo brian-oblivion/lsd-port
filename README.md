@@ -142,6 +142,13 @@ The command line and the environment win over it (the table under
   pixels a column or row wider than others (most visible in the menu
   text); `smooth` blurs; `integer` uses whole multiples only, with a
   black border.
+- `draw_distance = 1` (`--draw-distance`, `LSD_DRAW_DISTANCE`): how far
+  the dream shows before it fades into the fog, 1 to 4. On some days a
+  stage's fog closes in a few steps ahead; N moves it N times further
+  away, but never past the clearest fog any stage has, so the clearest
+  ones stay as they are. Far out the ground then ends at a straight edge
+  against the sky, as it does on those stages on the console: the game
+  draws only so many squares of ground ahead. 1 is the console's.
 
 ## Pace
 
@@ -194,6 +201,7 @@ Options, all optional:
 | `--scale MODE` | `LSD_SCALE` | `sharp` (default), `nearest`, `smooth` or `integer` ("Picture") |
 | `--pace N` | `LSD_PACE` | the dream's steps a second, 10 to 30; 14 (default) is about the console's, 20 the game's ("Pace") |
 | `--smooth on\|off` | `LSD_SMOOTH` | frames drawn between the dream's steps, `on` (default) or `off` ("Pace") |
+| `--draw-distance N` | `LSD_DRAW_DISTANCE` | the dream's fog N times further away, 1 (default) to 4 ("Picture") |
 | `--frames N` | | exit after N frames (for tests) |
 | | `LSD_VSYNC` | frame pacing: `auto`, `on` (the display's VSync), `off` (psyz's own limiter), `limitless` |
 | | `LSD_DEBUG_PORT` | psyz's debug server on 127.0.0.1 at that port (screenshots, input) |
