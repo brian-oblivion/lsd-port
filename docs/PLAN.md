@@ -168,10 +168,10 @@ answered in that list; the operator approved it on 2026-10-02.
   - `high-fps` (task 12): `smooth = on` (`--smooth on|off`,
     `LSD_SMOOTH`; on by default since 2026-10-06) draws a frame at every
     59.94 Hz blank between the dream's ticks, with the camera (DreamSys's
-    coordinate) and every moving node blended between the last two ticks;
-    a TodActor's parts (its TOD animation) and the StageMap's grid cells
-    are not, and a move of more than 4096 or 45 degrees in a tick (a link,
-    a respawn) is drawn as a jump. The logic stays at its pace; lockstep
+    coordinate) and every moving node blended between the last two ticks,
+    a TodActor's parts (its TOD animation) included since task 15; the
+    StageMap's grid cells only in scale, and a move of more than 4096 or
+    45 degrees in a tick (a link, a respawn) is drawn as a jump. The logic stays at its pace; lockstep
     shows identical state with it on and off. `src/pacing.c`,
     `docs/design.md` ("Pace and smooth").
   - `speed` (reported 2026-10-04; task 12): the port feels faster than

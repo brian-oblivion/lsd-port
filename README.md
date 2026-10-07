@@ -164,8 +164,9 @@ Two more settings in the same file change how the dream moves.
 - `smooth = on` (`--smooth on|off`, `LSD_SMOOTH`): frames drawn between
   the dream's steps, at 59.94 a second, with the camera and whatever moves
   blended between one step and the next, so turning and walking look
-  smooth at any pace. A creature's own animation keeps its steps, as on
-  the console, and a jump (a link, a respawn) is shown as a jump. `off`
+  smooth at any pace. Creatures' own animation is blended too, and the
+  ground rising or sinking; a jump (a link, a respawn) is shown as a jump.
+  `off`
   shows each step as it is. It draws about four times as many frames;
   measured on a desktop, each took about a third of a millisecond.
 
