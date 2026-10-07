@@ -299,19 +299,27 @@ from where the last tick drew it to where its logic has put it since, n
 being the passes from the last tick to the next (even steps, so a tick that
 comes a blank late doesn't show).
 
-- What it blends: before each tick (`RecordDrawn`) the pose (coord.t and
-  `param->rotate`) of every node in the trees `Viewport__Update` draws,
-  about 2900 in a dream, most of them grid cells. Between ticks every node
-  whose pose has changed is blended, the rotation as an angle the short
-  way round, and marked dirty (`flg = 0`) so `Viewport__DrawNode`
-  rebuilds its matrix from `param`, as every mover in the game's code
-  already does. The camera is DreamSys's coordinate (the view's parent),
-  so it is one of them. Not blended: a TodActor's parts, whose moves are
-  its TOD animation (kept at the tick rate, as on the console), and
-  GridCells, which the StageMap moves by whole cells (2048, with quarter
-  turns) to reuse them on the other side as the player walks.
+- What it blends: before each tick (`RecordDrawn`) the pose (coord.t,
+  `param->rotate`, `param->scale` and the parent coordinate) of every node
+  in the trees `Viewport__Update` draws, about 2900 in a dream, most of
+  them grid cells, which are skipped outside a scale ramp (below). Between
+  ticks every node whose pose has changed is blended, the rotation as an
+  angle the short way round, and marked dirty (`flg = 0`) so
+  `Viewport__DrawNode` rebuilds its matrix from `param`, as every mover in
+  the game's code already does. The camera is DreamSys's coordinate (the
+  view's parent), so it is one of them. A TodActor's parts are blended as
+  well (task 15; before, their TOD animation kept the tick rate, as on the
+  console): `ApplyTodPacket` writes the same `param->rotate`,
+  `param->scale` and coord.t, and a parent packet that moves a part under
+  another is a jump. GridCells are blended in scale only, and only while
+  the StageMap's scale ramp runs (the ground rising or sinking, 1/64 or
+  1/4 a tick; its `scaleRampTicks` non-zero when the tick is recorded;
+  recording all ~2800 cells every tick cost 50 to 100 µs a frame); their
+  moves are not, since the StageMap moves them by whole cells (2048, with
+  quarter turns) to reuse them on the other side as the player walks.
 - Jumps: a node that moved more than 4096 along an axis or 45 degrees in
-  one tick is drawn where the tick drew it; when that node is DreamSys the
+  one tick, changed a scale by more than 1.0 or changed parent is drawn
+  where the tick drew it; when that node is DreamSys the
   frame isn't drawn at all, so the tick's own picture stays up. A
   threshold rather than DreamSys's link state, because it catches links,
   respawns and anything else that teleports, objects too. Measured over
@@ -321,7 +329,7 @@ comes a blank late doesn't show).
 - The game's state: the draw writes every drawn node's `GsCOORDINATE2`
   (matrix, `workm` cache, `flg`) and psyz's libgs globals. `BlendTree`
   copies every coordinate before the draw and `Restore` puts them and
-  the blended rotations back, so the logic finds what it left; libgs's
+  the blended rotations and scales back, so the logic finds what it left; libgs's
   frame counter (PSDCNT, which only tells caches apart), the display
   buffer and the ordering tables move on, as they do every frame. The draw
   steps no animation, timer or `rand()`: the lockstep runs below show it.

@@ -25,7 +25,8 @@
 //    camera too. Every coordinate the draw can touch is put back afterwards,
 //    so the game's state is what it was; only libgs's frame counter and the
 //    buffers move on. A move too large for one tick (a link, a respawn) is
-//    not blended, nor are a TodActor's parts and the grid cells (IsBlended).
+//    not blended, and a grid cell's moves are not either, only its scale
+//    (BlendKind).
 // Menus, the post-day graph and the movies keep the game's own loop.
 //
 // Built with the game's C (it needs DayTask's and DrawSystem's method
@@ -36,6 +37,7 @@
 #include "draw_system.h"
 #include "grid_cell.h"
 #include "scene_node.h"
+#include "stage_map.h"
 #include "viewport.h"
 #include "pacing.h"
 
@@ -66,15 +68,25 @@ static void (*sDayTaskOnDeinit)(DayTask* self);
 static Viewport* sViewport;
 static SceneNode* sDreamSys;
 
-// TodActor's class id (gTodActorMethods' header): the nodes below one are the
-// parts its TOD animation moves.
-#define TODACTOR_CLASS_ID 0x234
+// The largest change of a scale (ONE = 1.0) in one tick that is blended.
+#define JUMP_SCALE ONE
 
-// What is blended: a node's offset from its parent and its rotation.
+// What is blended: a node's offset from its parent, its rotation and its
+// scale. The parent's coordinate is kept to tell a reparented node (a TOD
+// parent packet) from a moved one.
 typedef struct {
     int t[3];
     SVECTOR rotate;
+    int scale[3];
+    GsCOORDINATE2* super;
 } Pose;
+
+// How a node is blended.
+enum {
+    BLEND_NONE,
+    BLEND_POSE,  // offset, rotation and scale
+    BLEND_SCALE, // a GridCell: scale only (the StageMap's scale ramp)
+};
 
 // A node as the last tick drew it.
 typedef struct {
@@ -102,14 +114,15 @@ typedef struct {
 typedef struct {
     GsCOORD2PARAM* param;
     SVECTOR rotate;
-} SavedRotate;
+    VECTOR scale;
+} SavedParam;
 
 static SavedCoord* sSaved;
 static int sSavedCount;
 static int sSavedCap;
-static SavedRotate* sSavedRotates;
-static int sSavedRotateCount;
-static int sSavedRotateCap;
+static SavedParam* sSavedParams;
+static int sSavedParamCount;
+static int sSavedParamCap;
 
 // Makes room for one more element in a growing array.
 static void* Grow(void* array, int count, int* cap, size_t size) {
@@ -130,12 +143,26 @@ static void GetPose(SceneNode* node, Pose* pose) {
         pose->t[i] = coord->coord.t[i];
     }
     pose->rotate = coord->param->rotate;
+    pose->scale[0] = coord->param->scale.vx;
+    pose->scale[1] = coord->param->scale.vy;
+    pose->scale[2] = coord->param->scale.vz;
+    pose->super = coord->super;
 }
 
-static int SamePose(const Pose* a, const Pose* b) {
+static int SameScale(const Pose* a, const Pose* b) {
+    return a->scale[0] == b->scale[0] && a->scale[1] == b->scale[1] &&
+           a->scale[2] == b->scale[2];
+}
+
+// The same offset and rotation.
+static int SameMove(const Pose* a, const Pose* b) {
     return a->t[0] == b->t[0] && a->t[1] == b->t[1] && a->t[2] == b->t[2] &&
            a->rotate.vx == b->rotate.vx && a->rotate.vy == b->rotate.vy &&
            a->rotate.vz == b->rotate.vz;
+}
+
+static int SamePose(const Pose* a, const Pose* b) {
+    return SameMove(a, b) && SameScale(a, b) && a->super == b->super;
 }
 
 // The shortest way from angle a to b, in 4096ths of a turn.
@@ -143,7 +170,19 @@ static int AngleDelta(int a, int b) {
     return ((b - a + 2048) & 4095) - 2048;
 }
 
+static int IsScaleJump(const Pose* a, const Pose* b) {
+    for (int i = 0; i < 3; i++) {
+        if (abs(b->scale[i] - a->scale[i]) > JUMP_SCALE) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int IsJump(const Pose* a, const Pose* b) {
+    if (a->super != b->super || IsScaleJump(a, b)) {
+        return 1;
+    }
     for (int i = 0; i < 3; i++) {
         if (abs(b->t[i] - a->t[i]) > JUMP_DISTANCE) {
             return 1;
@@ -209,47 +248,86 @@ static int IsSceneNodeChild(BasicClass* child, SceneNode* parent) {
            ((SceneNode*)child)->parent == parent;
 }
 
-static int IsTodActor(SceneNode* node) {
-    return (node->methods->header & CLASS_ID_LEVEL3_MASK) == TODACTOR_CLASS_ID;
+// Whether the StageMap was ramping its cells' scale when the last tick was
+// recorded (or had just ended a ramp, whose reset is the last step).
+static int sScaleRamp;
+
+static int IsStageMap(SceneNode* node) {
+    return (node->methods->header & CLASS_ID_LEVEL3_MASK) == STAGEMAP_CLASS_ID;
 }
 
-// Whether a node's moves are blended: not a TodActor's part, whose moves are
-// its animation, and not a GridCell, which the StageMap moves by whole cells
-// (2048) as the player walks, to reuse it on the other side.
-static int IsBlended(SceneNode* node, int isPart) {
-    return !isPart && (u8)node->methods->header != GRIDCELL_CLASS_ID && node->coord2 != NULL &&
-           node->coord2->param != NULL;
+// How a node's moves are blended: a GridCell's scale only, and only while
+// its StageMap ramps it (about 2800 cells, so not looked at otherwise), since
+// the StageMap moves cells by whole cells (2048, with quarter turns) as the
+// player walks, to reuse them on the other side; anything else with a
+// GsCOORD2PARAM entirely, a TodActor's parts (its TOD animation) included.
+static int BlendKind(SceneNode* node) {
+    if (node->coord2 == NULL || node->coord2->param == NULL) {
+        return BLEND_NONE;
+    }
+    if ((u8)node->methods->header == GRIDCELL_CLASS_ID) {
+        return sScaleRamp ? BLEND_SCALE : BLEND_NONE;
+    }
+    return BLEND_POSE;
 }
 
 // Records the pose of `node` and the SceneNodes below it, as
-// Viewport__DrawNode walks them, of those IsBlended.
-static void RecordTree(SceneNode* node, int isPart) {
+// Viewport__DrawNode walks them, of those blended.
+static void RecordTree(SceneNode* node) {
     BasicClassListNode* cursor = node->children;
     BasicClass* child;
 
-    if (IsBlended(node, isPart)) {
+    if (IsStageMap(node) && ((StageMap*)node)->scaleRampTicks != 0) {
+        sScaleRamp = 1;
+    }
+    if (BlendKind(node) != BLEND_NONE) {
         sDrawn = Grow(sDrawn, sDrawnCount, &sDrawnCap, sizeof(*sDrawn));
         Drawn* d = &sDrawn[sDrawnCount++];
         d->node = node;
         d->coord = node->coord2;
         GetPose(node, &d->pose);
     }
-    isPart = isPart || IsTodActor(node);
     while (cursor != NULL) {
         GetNextBasicClass(&child, &cursor);
         if (IsSceneNodeChild(child, node)) {
-            RecordTree((SceneNode*)child, isPart);
+            RecordTree((SceneNode*)child);
         }
     }
 }
 
+// Puts `coord` i / n of the way from pose `a` to pose `b`: all of it, or with
+// scaleOnly its scale alone; saving its rotation and scale for Restore.
+static void PutBlended(GsCOORDINATE2* coord, const Pose* a, const Pose* b, int scaleOnly, int i,
+                       int n) {
+    GsCOORD2PARAM* param = coord->param;
+    sSavedParams = Grow(sSavedParams, sSavedParamCount, &sSavedParamCap, sizeof(*sSavedParams));
+    sSavedParams[sSavedParamCount].param = param;
+    sSavedParams[sSavedParamCount].rotate = param->rotate;
+    sSavedParams[sSavedParamCount].scale = param->scale;
+    sSavedParamCount++;
+    if (!scaleOnly) {
+        for (int k = 0; k < 3; k++) {
+            coord->coord.t[k] = Blend(a->t[k], b->t[k], i, n);
+        }
+        param->rotate.vx = BlendAngle(a->rotate.vx, b->rotate.vx, i, n);
+        param->rotate.vy = BlendAngle(a->rotate.vy, b->rotate.vy, i, n);
+        param->rotate.vz = BlendAngle(a->rotate.vz, b->rotate.vz, i, n);
+    }
+    param->scale.vx = Blend(a->scale[0], b->scale[0], i, n);
+    param->scale.vy = Blend(a->scale[1], b->scale[1], i, n);
+    param->scale.vz = Blend(a->scale[2], b->scale[2], i, n);
+    coord->flg = 0;
+}
+
 // Saves every coordinate of `node` and the SceneNodes below it, and puts each
 // recorded node that has moved since i / n of the way from its recorded pose
-// to its current one (or at its recorded pose, after a jump).
-static void BlendTree(SceneNode* node, int isPart, int i, int n) {
+// to its current one (or at its recorded pose, after a jump). A GridCell that
+// the StageMap has moved is drawn where it is now.
+static void BlendTree(SceneNode* node, int i, int n) {
     BasicClassListNode* cursor = node->children;
     BasicClass* child;
     GsCOORDINATE2* coord = node->coord2;
+    int kind = BlendKind(node);
     Drawn* d;
     Pose now;
 
@@ -259,41 +337,33 @@ static void BlendTree(SceneNode* node, int isPart, int i, int n) {
         sSaved[sSavedCount].saved = *coord;
         sSavedCount++;
     }
-    if (IsBlended(node, isPart) && (d = FindDrawn(node)) != NULL && d->coord == coord) {
+    if (kind != BLEND_NONE && (d = FindDrawn(node)) != NULL && d->coord == coord) {
         GetPose(node, &now);
-        if (!SamePose(&d->pose, &now)) {
-            int k = IsJump(&d->pose, &now) ? 0 : i;
-            sSavedRotates = Grow(sSavedRotates, sSavedRotateCount, &sSavedRotateCap,
-                                 sizeof(*sSavedRotates));
-            sSavedRotates[sSavedRotateCount].param = coord->param;
-            sSavedRotates[sSavedRotateCount].rotate = coord->param->rotate;
-            sSavedRotateCount++;
-            for (int a = 0; a < 3; a++) {
-                coord->coord.t[a] = Blend(d->pose.t[a], now.t[a], k, n);
+        if (kind == BLEND_SCALE) {
+            if (SameMove(&d->pose, &now) && !SameScale(&d->pose, &now)) {
+                PutBlended(coord, &d->pose, &now, 1, IsScaleJump(&d->pose, &now) ? 0 : i, n);
             }
-            coord->param->rotate.vx = BlendAngle(d->pose.rotate.vx, now.rotate.vx, k, n);
-            coord->param->rotate.vy = BlendAngle(d->pose.rotate.vy, now.rotate.vy, k, n);
-            coord->param->rotate.vz = BlendAngle(d->pose.rotate.vz, now.rotate.vz, k, n);
-            coord->flg = 0;
+        } else if (!SamePose(&d->pose, &now)) {
+            PutBlended(coord, &d->pose, &now, 0, IsJump(&d->pose, &now) ? 0 : i, n);
         }
     }
-    isPart = isPart || IsTodActor(node);
     while (cursor != NULL) {
         GetNextBasicClass(&child, &cursor);
         if (IsSceneNodeChild(child, node)) {
-            BlendTree((SceneNode*)child, isPart, i, n);
+            BlendTree((SceneNode*)child, i, n);
         }
     }
 }
 
 static void Restore(void) {
-    for (int i = sSavedRotateCount - 1; i >= 0; i--) {
-        sSavedRotates[i].param->rotate = sSavedRotates[i].rotate;
+    for (int i = sSavedParamCount - 1; i >= 0; i--) {
+        sSavedParams[i].param->rotate = sSavedParams[i].rotate;
+        sSavedParams[i].param->scale = sSavedParams[i].scale;
     }
     for (int i = sSavedCount - 1; i >= 0; i--) {
         *sSaved[i].coord = sSaved[i].saved;
     }
-    sSavedRotateCount = 0;
+    sSavedParamCount = 0;
     sSavedCount = 0;
 }
 
@@ -306,8 +376,9 @@ static void RecordDrawn(void) {
         return;
     }
     sDrawnCount = 0;
-    RecordTree(GetRootNode(vp->viewNode), 0);
-    RecordTree(vp->sceneRoot, 0);
+    sScaleRamp = 0;
+    RecordTree(GetRootNode(vp->viewNode));
+    RecordTree(vp->sceneRoot);
     IndexDrawn();
     GetPose(sDreamSys, &sCamera);
     sHaveDrawn = 1;
@@ -327,8 +398,8 @@ static void DrawInBetween(int i, int n) {
     }
 
     vp->methods->flip(vp);
-    BlendTree(GetRootNode(vp->viewNode), 0, i, n);
-    BlendTree(vp->sceneRoot, 0, i, n);
+    BlendTree(GetRootNode(vp->viewNode), i, n);
+    BlendTree(vp->sceneRoot, i, n);
     vp->methods->update(vp);
     Restore();
 }
