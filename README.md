@@ -169,6 +169,11 @@ Two more settings in the same file change how the dream moves.
   `off`
   shows each step as it is. It draws about four times as many frames;
   measured on a desktop, each took about a third of a millisecond.
+- `frame_rate = 60` (`--frame-rate`, `LSD_FRAME_RATE`): with smooth on,
+  the dream's frames a second. `60` is the console's rate; `display`
+  uses your display's refresh rate (120, 144, ...), presented with its
+  VSync; a number from 30 to 360 asks for that many. The dream's pace
+  stays what `pace` says either way; menus and movies stay at 60.
 
 ## Running a release
 
@@ -202,6 +207,7 @@ Options, all optional:
 | `--scale MODE` | `LSD_SCALE` | `sharp` (default), `nearest`, `smooth` or `integer` ("Picture") |
 | `--pace N` | `LSD_PACE` | the dream's steps a second, 10 to 30; 14 (default) is about the console's, 20 the game's ("Pace") |
 | `--smooth on\|off` | `LSD_SMOOTH` | frames drawn between the dream's steps, `on` (default) or `off` ("Pace") |
+| `--frame-rate N\|display` | `LSD_FRAME_RATE` | with smooth on, the dream's frames a second: `60` (default), `display` or 30 to 360 ("Pace") |
 | `--draw-distance N` | `LSD_DRAW_DISTANCE` | the dream's fog N times further away, 1 (default) to 4 ("Picture") |
 | `--frames N` | | exit after N frames (for tests) |
 | | `LSD_VSYNC` | frame pacing: `auto`, `on` (the display's VSync), `off` (psyz's own limiter), `limitless` |

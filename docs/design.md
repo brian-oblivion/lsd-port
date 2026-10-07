@@ -336,10 +336,35 @@ comes a blank late doesn't show).
 - 2D drawn in the dream (fades, the pause text, sprites) is in the same
   trees and is redrawn as it is. Things the game moves on frame time (the
   DrawSystem's VSYNC event: fades, sparkles) still move once a tick.
-- Frames are presented at psyz's 59.94 Hz, the rate `VSync` counts in.
-  A 120 or 144 Hz display gets 59.94 frames a second (psyz's limiter);
-  presenting at the display's own rate would need psyz to decouple
-  presenting from its blank count.
+- Frames are presented at psyz's 59.94 Hz, the rate `VSync` counts in,
+  unless `frame_rate` says otherwise (below).
+
+### Frame rate (task 16, 2026-10-07)
+
+On a 120 or 144 Hz display psyz's auto VSync can't use the driver's VSync
+(it matches 59.94 only), so the smooth dream went out at 59.94 through the
+limiter. `frame_rate = display` (or a number, 30 to 360) runs the dream's
+passes at that rate instead:
+
+- psyz (fork, `present-rate`): `Psyz_VideoPresent(fps)` presents and paces
+  the next frame at `fps`: the driver's VSync when the display refreshes at
+  about that rate (or VSync is forced on), else the limiter; no VSync
+  callbacks. `Psyz_VideoVSync` switches the driver VSync back for the
+  59.94 pacing of menus and movies. `Psyz_VideoGetDisplayRate` reports the
+  window's display.
+- `src/pacing.c` (`TimedPass`): each pass presents at that rate, a tick
+  runs when its time is due (`pace * 59.94 / 60` a second, as on the blank
+  grid), and the passes between draw the world at the fraction of the tick
+  their time is (in 4096ths). A late tick is not caught up on.
+  Outside the dream, and with smooth off, nothing changes.
+
+Measured (RelWithDebInfo x86_64, headless, the limiter): at 144, 144.1
+frames and 14.00 ticks a second, tick gaps 69 to 77 ms (67 to 84 on the
+blank grid, whose ticks fall on 4 or 5 blanks); a turn draws the camera's
+yaw 6 to 7 units a frame, 68 a tick. Lockstep at 144 (x86_64 Debug, pace
+14): days 22 and 340 and two of task 14's spots, every STATE and SAVEBLK
+line the same as `main`'s. The driver VSync path (a real 120/144 Hz
+display) is not tested here.
 
 ### Measured
 

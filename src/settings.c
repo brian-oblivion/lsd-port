@@ -5,10 +5,12 @@
 //   scale = sharp           nearest | sharp | smooth | integer
 //   pace = 14               the dream's ticks a second, 10 to 30
 //   smooth = on             frames drawn between the dream's ticks
+//   frame_rate = 60         their rate: 60, display, or 30 to 360
 //   draw_distance = 1       the dream's fog N times further away, 1 to 4
 // The command line (--aspect, --resolution, --scale, --pace, --smooth,
-// --draw-distance) and the environment (LSD_ASPECT, LSD_RESOLUTION,
-// LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_DRAW_DISTANCE) win over the file.
+// --frame-rate, --draw-distance) and the environment (LSD_ASPECT,
+// LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE,
+// LSD_DRAW_DISTANCE) win over the file.
 
 #include "settings.h"
 #include "draw_distance.h"
@@ -28,10 +30,13 @@ typedef struct {
     PsyzScaleMode scale;
     int pace;
     int smooth;
+    int frameRate;
     int drawDistance;
 } Settings;
 
-static const Settings sDefaults = {4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1, 1};
+static const Settings sDefaults = {
+    4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1,
+};
 
 static const struct {
     const char* name;
@@ -46,9 +51,9 @@ static const struct {
 
 static const char sDefaultFile[] =
     "# LSD: Dream Emulator settings. The command line (--aspect, --resolution,\n"
-    "# --scale, --pace, --smooth, --draw-distance) and the environment\n"
-    "# (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,\n"
-    "# LSD_DRAW_DISTANCE) win over this file.\n"
+    "# --scale, --pace, --smooth, --frame-rate, --draw-distance) and the\n"
+    "# environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE,\n"
+    "# LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE) win over this file.\n"
     "# Delete it to get the defaults back.\n"
     "\n"
     "# The dream's width:height. 4:3 is the console's picture; a wider one,\n"
@@ -73,6 +78,10 @@ static const char sDefaultFile[] =
     "# on: frames drawn between the dream's ticks, at 59.94 a second, with\n"
     "# the camera moving smoothly. off: each tick shown as it is.\n"
     "smooth = on\n"
+    "\n"
+    "# With smooth on, the dream's frames a second: 60, the console's; display,\n"
+    "# your display's refresh rate (120, 144, ...); or a number, 30 to 360.\n"
+    "frame_rate = 60\n"
     "\n"
     "# How far the dream shows before it fades into the fog, 1 to 4: the fog\n"
     "# N times further away, never past the clearest a stage has. 1 is the\n"
@@ -119,6 +128,21 @@ static int ParseDrawDistance(const char* s, int* out) {
     return 0;
 }
 
+static int ParseFrameRate(const char* s, int* out) {
+    char* end;
+    long n;
+    if (SDL_strcasecmp(s, "display") == 0) {
+        *out = PACING_FRAME_RATE_DISPLAY;
+        return 0;
+    }
+    n = strtol(s, &end, 10);
+    if (*s == '\0' || *end != '\0' || n < PACING_FRAME_RATE_MIN || n > PACING_FRAME_RATE_MAX) {
+        return -1;
+    }
+    *out = n == 60 ? PACING_FRAME_RATE_CONSOLE : (int)n;
+    return 0;
+}
+
 static int ParseOnOff(const char* s, int* out) {
     if (SDL_strcasecmp(s, "on") == 0 || SDL_strcmp(s, "1") == 0) {
         *out = 1;
@@ -161,6 +185,12 @@ static int ApplySetting(void* ctx, const char* name, char* value, const char* pa
             return 0;
         }
         fprintf(stderr, "lsd: %s:%d: smooth wants on or off\n", path, lineNo);
+    } else if (SDL_strcasecmp(name, "frame_rate") == 0) {
+        if (ParseFrameRate(value, &set->frameRate) == 0) {
+            return 0;
+        }
+        fprintf(stderr, "lsd: %s:%d: frame_rate wants 60, display or %d to %d\n", path, lineNo,
+                PACING_FRAME_RATE_MIN, PACING_FRAME_RATE_MAX);
     } else if (SDL_strcasecmp(name, "draw_distance") == 0) {
         if (ParseDrawDistance(value, &set->drawDistance) == 0) {
             return 0;
@@ -213,6 +243,11 @@ int SetUpSettings(const char* savesDir, const SettingArgs* args,
         error("--smooth wants on or off (got %s)", args->smooth);
         return -1;
     }
+    if (args->frameRate != NULL && ParseFrameRate(args->frameRate, &set.frameRate) != 0) {
+        error("--frame-rate wants 60, display or %d to %d (got %s)", PACING_FRAME_RATE_MIN,
+              PACING_FRAME_RATE_MAX, args->frameRate);
+        return -1;
+    }
     if (args->drawDistance != NULL &&
         ParseDrawDistance(args->drawDistance, &set.drawDistance) != 0) {
         error("--draw-distance wants %d to %d (got %s)", DRAW_DISTANCE_MIN, DRAW_DISTANCE_MAX,
@@ -223,7 +258,7 @@ int SetUpSettings(const char* savesDir, const SettingArgs* args,
     Widescreen_Init(set.aspect);
     Psyz_VideoSetInternalResolution((unsigned)set.resolution);
     Psyz_VideoSetScaleMode(set.scale);
-    Pacing_Init(set.pace, set.smooth);
+    Pacing_Init(set.pace, set.smooth, set.frameRate);
     DrawDistance_Init(set.drawDistance);
     return 0;
 }

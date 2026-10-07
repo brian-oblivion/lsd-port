@@ -173,7 +173,10 @@ answered in that list; the operator approved it on 2026-10-02.
     StageMap's grid cells only in scale, and a move of more than 4096 or
     45 degrees in a tick (a link, a respawn) is drawn as a jump. The logic stays at its pace; lockstep
     shows identical state with it on and off. `src/pacing.c`,
-    `docs/design.md` ("Pace and smooth").
+    `docs/design.md` ("Pace and smooth"). `frame_rate = display` (or
+    30 to 360; task 16) presents the smooth dream at the display's
+    refresh rate through psyz's `Psyz_VideoPresent`, the ticks scheduled
+    by time; not yet seen on a real high-refresh display.
   - `speed` (reported 2026-10-04; task 12): the port feels faster than
     the console. Measured (task 07): the port runs the dream at 20.0 ticks
     per second everywhere, DuckStation at 13.8 on average (12.8 to 17.8
