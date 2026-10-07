@@ -48,6 +48,10 @@ display could show, and with uneven frame pacing against its refresh.
 - psyz host tests: 319 pass (Vulkan, Debug); GL software 317 pass and the
   same two dither tests fail with and without this change.
 - Builds: x86_64 Debug and RelWithDebInfo, i686, Windows x86_64 (MinGW).
+- ASan and bounds (`-DLSD_SANITIZE=address,bounds`, `build-t16-asan`),
+  four dreams walking 700 ticks with smooth on, `frame_rate = 144` and
+  `draw_distance = 4` (so task 15's blending and task 14's fog too): no
+  report but the known one at `viewport_draw.c:106` (task 11).
 
 ## Not tested — for the operator
 
