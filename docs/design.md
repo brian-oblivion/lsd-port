@@ -453,3 +453,109 @@ cheap.
   between the two (-80 to +60 µs) are within what one run differs from the
   next. The GTE work is the same: the footprint's cells are transformed
   either way, and the fog only decides whether a face is submitted.
+
+## Widescreen edges (task 17, 2026-10-08)
+
+At 16:9 the ground and buildings at one side could end in a straight
+line well inside the picture (the operator's Happy Town screenshot), and
+some sparkles sat away from their effect: the map's footprint and plain
+world sprites.
+
+### Why the sides ran out
+
+The StageMap shows only the cells in a 20 x 20 window
+(`StageMap__ComputeFootprintFromRotation`): from the player's cell 20
+ahead along the axis nearest the look direction, and 20 across, shifted
+toward the look direction by `gridSpan · sin` of the angle off that axis
+(at most 9 cells). Every other cell is GsDOFF. The shift suits the
+console's view, half-width 160 / 266 ≈ 0.6 of the depth; at 16:9 it is
+0.8, and the window's side, on the side it was shifted away from, comes
+into view much sooner. Over positions in a chunk and all headings (a
+model of the window against the view cone, scratch):
+
+| | the side seen | nearest | 5 % of cases nearer than |
+|---|---|---|---|
+| 4:3, the console | always, before the far edge | 11.6 cells | 13.3 |
+| 16:9, the game's window | always | 4.9 cells (10 000 units) | 6.4 |
+| 16:9, widened (below) | 80 % of cases | 8.4 cells | 13.9 |
+
+A cell is 2048 units; the far edge is 19 to 20 cells ahead. The worst
+headings are 20 to 30 degrees off an axis, where the window is shifted
+furthest. No fog but level 4's hides 10 000 units, so it showed at every
+draw distance; above 1 more of it shows.
+
+### The widening
+
+`src/widescreen.c` wraps `gStageMapMethods.refreshFootprint` (called
+every tick by UpdateFootprintTracking) when the aspect is wider than 4:3:
+after the game's own refresh it shows every cell of the seven loaded
+chunks that lies within the window's extent along its ahead axis (so the
+horizon stays where it is) and in the wider view cone, at this tick's yaw
+or the last one's (the in-between frames of `smooth` turn from one to the
+other), with a margin of about two cells for models that reach past
+their cell. Before the next refresh it hides them again; a slot whose
+chunk changed in between is left alone (the reload reset its cells).
+
+What it can't do: show a cell that isn't loaded. The ring is the
+player's chunk and six neighbours; the rows before and after it cover
+only x -10 to 30 cells of the centre chunk's 0 to 20. Near a chunk's
+corner, looking diagonally, the cone still reaches past them at 8.4
+cells. Going further needs a second ring (task 14, "The footprint": 19
+chunks, their loads timed ahead), not attempted.
+
+At 16:9 the centre can now show a little more than the console's 4:3:
+at headings off an axis the window's lateral side also crosses the
+middle of the view, far out, and those cells are shown too. Limiting the
+extra cells to the side strips would draw a seam at the 4:3 edge.
+
+It is drawing only: the commands StageMap hands to cells
+(`ApplyToSenderFootprint`, `DispatchToRectCells`) use their own 3 x 3
+window around the sender and restore `rects`; nothing in the game reads a
+cell's GsDOFF but the renderer and `SceneNode__RaycastVertical`, which
+for a hidden cell rebuilds its world position from the translations
+instead of reading the one the draw left (the lockstep runs below show
+the same state either way). At 4:3 nothing is installed.
+
+### Sprites
+
+Viewport__DrawNode projects a world sprite itself and hands GsSortSprite
+the screen position; psyz's GTE path squeezes it, but a plain sprite
+(scale 1, no rotation, no flip) is drawn as a SPRT where it is, 4/3 too
+far from the centre at 16:9 (task 09 had seen none). A gdb counter on
+GsSortSprite over the walks below found one kind: StyleEffect's
+VariantSprites (class 0x1F44, a 16x16 cell of `sStyleEffectTim`). The
+plain kind (`StyleEffect__SpawnPlainSprites`) leaves all five at scale 1,
+the jitter kind its first. Seen at Kyoto, Monument Park and Natural
+World; at Kyoto one sat at x -109 for thousands of frames.
+
+`src/widescreen.c` wraps VariantSprite's reset (the ctor's last step)
+and updateScale: a sprite left at exactly ONE x ONE gets scalex ONE + 1,
+which sends it down the GTE path with its siblings, 1/4096 wider. Nothing
+but GsSortSprite reads `sprite.scalex` (updateScale writes it, or
+multiplies the separate accumScale while accumulateScale is set). The
+pause text and other ScreenSprites keep the SPRT path (task 09: the GTE
+path garbles their 8x8 glyphs).
+
+The ±512 clamp on a world sprite's projected position is in unsqueezed
+units; 512 · 3/4 is still off the 16:9 screen (±213), so it hides
+nothing.
+
+### Checked
+
+- Lockstep (x86_64 Debug, pace 14, smooth on, seed 4321, draw distance
+  4, 16:9): task 14's eight spots (Natural World, Kyoto, Happy Town,
+  Monument Park, two days each) walking for 700 ticks, through links into
+  stages 0 to 6, 12 and 13, with a STATE line every tick: the same 646 or
+  647 STATE lines and SAVEBLK with and without the widening and the
+  sprite wrap. Turning on the spot at Happy Town (three spawns, 35
+  freezes each): the same STATE; the shots differ only in the side strips
+  (and once, far out, inside the 4:3 part, above).
+- At 4:3 (Happy Town and Kyoto walks): the same STATE and byte-identical
+  freeze shots; nothing is installed.
+- Frame times (RelWithDebInfo x86_64, 16:9, draw distance 4, psyz's draw
+  time, 12 s standing and 12 s turning at Kyoto, Natural World and Happy
+  Town): medians 240 to 440 µs per frame either way; the widened build's
+  differ by -8 to +55 µs, within run-to-run noise (task 14: -80 to +60).
+- Builds: x86_64 Debug and RelWithDebInfo, i686 RelWithDebInfo, Windows
+  x86_64 (MinGW), with only the two old "function called through a
+  non-compatible type" warnings.

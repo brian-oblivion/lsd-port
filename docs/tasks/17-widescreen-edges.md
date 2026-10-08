@@ -29,6 +29,33 @@ distance"), and the docstrings of `tools/lockstep.py` and
   then squeezed through `GsSortSprite`'s GTE path. Task 09 noted that a
   plain sprite (scale 1, unrotated) is not squeezed at all.
 
+## The operator's screenshot (Happy Town, 16:9, draw distance 4)
+
+Taken on the red-tile ground with the tall brown hexagonal pencil-shaped
+building on the left, the "LOVE" sign (seen from behind) and a small green
+house beyond it, a slanted red-and-yellow face panel in the middle. Not in
+the repository; this is what it shows:
+
+- **Ground missing on the left, close to the camera.** The red-tile ground
+  ends in a straight line from the left screen edge, roughly 37 PSX lines
+  below the horizon, up to the foot of the brown building; left of the
+  building there is only sky down to that line. On the right the ground
+  (the purple brick strip with its yellow line) runs on to the horizon
+  and the screen edge. A straight world-space edge on the side the view
+  turns away from: that looks like suspect 1, the footprint shifted
+  toward the look direction, and it is near enough that no fog level
+  except 4 would hide it, so it should show at draw distance 1 as well.
+- In the 4:3 part of the picture the same edge would fall behind the
+  brown building, so from that spot the console wouldn't show it; only
+  the extra width exposes it.
+- A thin straight line from the top edge down to above the brown
+  building's tip (about a fifth of the way in from the left), and a few
+  single dark dots in the sky. Could be a long sliver of a polygon with a
+  vertex far off-screen (GTE saturation, or something the squeeze lets
+  through that 4:3 keeps off-screen); find which primitive it is.
+- The mouse pointer shows over the game window (not this task's; note it
+  for the operator if it's cheap in psyz).
+
 ## Suspects, most likely first
 
 1. **The map's footprint.** The StageMap draws only 20 x 20 cells (2048

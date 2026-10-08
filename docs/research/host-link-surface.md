@@ -437,9 +437,10 @@ What draws where at 16:9:
   the pause text (CharSprite) is stretched by 4/3, and a world sprite
   at scale 1 would sit 4/3 too far from the centre (StyleEffect's
   VariantSprites set their scale every frame, so they take the GTE
-  path; no plain world sprite was seen). Sending plain sprites
-  through the GTE as well was tried and dropped: at 1x its 8x8 glyphs
-  lose texel columns, and even at 4x the POLY_FT4 path's texel rounding
+  path; no plain world sprite was seen, but task 17 found some, in
+  StyleEffect's plain kind, and sends them down the GTE path, see
+  `docs/design.md`). Sending plain sprites through the GTE as well was
+  tried and dropped: at 1x its 8x8 glyphs lose texel columns, and even at 4x the POLY_FT4 path's texel rounding
   garbles them ("Pause" reads "False").
 - Box fills and fades are 2D across 320: they fill the 16:9 screen.
 - Edges: the map draws a footprint of 20x20 cells (2048 units each)
@@ -451,7 +452,9 @@ What draws where at 16:9:
   fences, the desert, Violence District at night, a red stage) showed no
   missing ground or walls at the sides: fog ends the view before the
   footprint's sides. A stage with little fog, looked at diagonally,
-  might still show the footprint's corners; not seen.
+  might still show the footprint's corners; not seen. Task 17 found them
+  (as near as 10000 units, at any fog but level 4) and widens the
+  footprint sideways at 16:9: `docs/design.md`, "Widescreen edges".
 
 `--resolution N` is psyz's internal resolution. At 4 the dream is sharp,
 movies and the menu keep their pixels, and the debug server's
