@@ -20,7 +20,11 @@ The config (JSON):
              runs, by the dream FrameClock's tick (button names as the
              debug server's)
   freeze     ticks at which the dream clock stops for freeze_len ticks
-             (default 40); a screenshot is taken then, f<tick>_<n>.png
+             (default 40); a screenshot is taken then, f<tick>_<n>.png.
+             The world is still drawn with the clock stopped, which the
+             game never does (its pause turns drawing off first): an
+             Entity's parts tear there, their cached matrices drawn again
+             without the tick that marks them changed (task 18)
   freeze_shots [count, gap]: more shots per freeze, gap seconds apart,
              f<tick>_<n>_<k>.png (k from 1), to see what moves while the
              dream clock is stopped; freeze_len must cover them

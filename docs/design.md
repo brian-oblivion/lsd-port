@@ -333,6 +333,20 @@ comes a blank late doesn't show).
   frame counter (PSDCNT, which only tells caches apart), the display
   buffer and the ordering tables move on, as they do every frame. The draw
   steps no animation, timer or `rand()`: the lockstep runs below show it.
+- Cached matrices (task 18): an in-between frame marks changed (`flg =
+  0`) every coordinate the tick's draw computed, its `flg` the tick's
+  frame stamp (libgs's PSDCNT, read by computing a root coordinate of our
+  own: `FrameStamp`), so that it computes them again rather than reuse
+  their `workm`. The game's `SortTmdObject` multiplies an object's `workm`
+  by its parent's in place once it has its matrices; with one draw a
+  tick, the next tick's logic marks every moving model changed before it
+  is drawn again (`TodActor__Tick` marks an Entity, whose parts then follow),
+  so the multiplied matrix is never read back. Drawn between ticks
+  without that, an Entity's parts got their parent's rotation and scale
+  twice: the fish at Natural World (an Entity at scale 6.0), torn into a
+  flat sheet in every frame but the tick's. A coordinate the tick's draw
+  took from the cache is left to the cache, as the console's next draw
+  would.
 - 2D drawn in the dream (fades, the pause text, sprites) is in the same
   trees and is redrawn as it is. Things the game moves on frame time (the
   DrawSystem's VSYNC event: fades, sparkles) still move once a tick.
