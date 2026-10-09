@@ -573,3 +573,93 @@ nothing.
 - Builds: x86_64 Debug and RelWithDebInfo, i686 RelWithDebInfo, Windows
   x86_64 (MinGW), with only the two old "function called through a
   non-compatible type" warnings.
+
+## Dithering and colour depth (task 19, 2026-10-09)
+
+At `resolution 6` the PS1's 4x4 dither pattern, drawn per scaled pixel,
+shows as a fine crosshatch over every lit texture; with dithering off,
+the 15-bit rounding shows instead. Two settings, both defaulting to the
+console's look: `dither = on|off` and `colour = console|full`
+(`src/settings.c`; psyz's `Psyz_VideoSetDitheringMode` and
+`Psyz_VideoSetColorDepth`).
+
+### What dithers
+
+The game turns dithering on once, for everything (`GsInitGraph`'s dither
+argument in `DrawSystem__InitGraph`), so every primitive it sends carries
+the bit; which ones the GPU then dithers depends on the kind. A counter in
+psyz's `Draw_PushPrim` (scratch) over Natural World day 5 (spawn 3/30,
+walking 3200 ticks) and the menus:
+
+| kind | in the dream | dithered |
+|---|---|---|
+| textured, lit (flat colour) | 5 526 000 | yes |
+| Gouraud, untextured | 90 800 | yes |
+| flat, untextured | 8 300 | no |
+| tiles | 149 600 | no |
+| sprites | 3 700 | no |
+| textured Gouraud, raw textured, lines | 0 | |
+
+The world is flat-lit textured polygons: GTE lighting and fog give each
+polygon one colour, which modulates its texture, so the dither falls on
+the texture times that colour. The intro movies, the title menu and the
+graph are lit textured polygons as well (370 800 before the first menu,
+all dithered). The sky's gradient is flat strips the game steps itself,
+so neither setting touches it.
+
+### Dither off
+
+`dither = off` sets `PSYZ_DITHER_OFF` for the whole game, menus and movies
+included. On the console a texture drawn at brightness 128 still dithers:
+the pattern's offsets (-4 to +3 on 8 bits) put half its pixels one 5-bit
+step down, so the 2D screens get the same grain; turning it off there gives
+their texels exactly. Without dithering the texture-times-colour product is
+truncated to 5 bits, as the PS1 does, and the steps show on darker lit
+walls, in fog, and on the Gouraud walls of the first dream's rooms.
+
+### Full colour
+
+`colour = full` (`PSYZ_COLOR_DEPTH_24`) keeps what the shader computes at
+8 bits per channel: the texture times the colour, as `tex5 / 31 · col / 128`
+(so brightness 128 draws the texel exactly, as at 15 bits), and Gouraud
+colour as interpolated. It implies no dithering. Each primitive carries the
+depth in a spare TPAGE bit (`TPAGE_FULLCOLOR`, 0x1000), which the vertex
+shader folds into its `dither` value (2: keep 8 bits). The render target is
+already RGBA8, so nothing else changes; untextured primitives without
+dithering were already drawn at 8 bits.
+
+Where 8 bits can't reach, and why it doesn't matter here:
+
+- **Readbacks.** VRAM read as 15-bit (texture pages, CLUT lookups,
+  StoreImage, MoveImage) rounds a 24-bit pixel to the nearest 15-bit value
+  rather than truncating it as the PS1 would. The game never reads what it
+  drew: it textures only from loaded TIMs and the tile atlas (VRAM x 640 to
+  960), draws only into the two display buffers (`GsDefDispBuff`), and its
+  StoreImage and MoveImage touch the fade CLUTs (`CLUT_FADE_Y`, from the
+  disc) and texture strips (`StyleScrollVramStrips`).
+- **Semi-transparency** blends in the RGBA8 target at 8 bits either way;
+  with full colour its inputs simply keep their low bits.
+- **Images and movies** are 15-bit on the disc. Drawn at brightness 128
+  they look the same at either depth; the title menu, drawn a little under
+  128, comes out about two levels (of 255) brighter than with dither off,
+  where the truncation drops a step.
+
+### Checked
+
+- Lockstep (x86_64 Debug, resolution 6, seed 1234, day 5, a STATE line
+  every tick, four freezes): Natural World spawn 3/30 and Kyoto spawn 2/0,
+  `main` (psyz `ad64361`) against this branch with the defaults, dither off
+  and full colour: the same STATE and SAVEBLK lines over all 3 191 to 3 199
+  ticks the runs reached. OpenGL (`sdl3_gl`, on Xvfb): `main`, defaults and
+  full colour at Natural World, the same STATE (2 850 ticks and more).
+- Screenshots with the defaults, `main` against the branch: byte-identical
+  at 320x240 (Vulkan, all five), and at the full 1920x1440 (a scratch
+  capture of the scaled target) the menu and two freezes identical; the
+  other two differ only on the water, whose texture scrolls on frame time
+  while the dream clock is frozen. OpenGL alike (about 91 % of the
+  differing pixels water-coloured, the rest its pink reflections).
+- Colours in a frame (1920x1440, Natural World): about 4 000 with
+  dithering, 2 500 with it off, 5 300 at full colour.
+- Frame times (RelWithDebInfo, resolution 6, psyz's draw time over 30 s
+  standing in the first dream's room): medians 314 µs (defaults), 313
+  (dither off), 307 (full colour), within run-to-run noise.

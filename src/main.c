@@ -138,13 +138,14 @@ int main(int argc, char** argv) {
     const char* disc = getenv("LSD_DISC");
     const char* saves = getenv("LSD_SAVES");
     // --aspect W:H, --resolution N, --scale MODE, --pace N, --smooth on|off,
-    // --frame-rate N|display, --draw-distance N (or LSD_ASPECT, LSD_RESOLUTION,
-    // LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE): the
-    // picture and the dream's pacing, over settings.ini (src/settings.c).
+    // --frame-rate N|display, --draw-distance N, --dither on|off,
+    // --colour console|full (or LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE,
+    // LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER, LSD_COLOUR):
+    // the picture and the dream's pacing, over settings.ini (src/settings.c).
     SettingArgs settings = {
         getenv("LSD_ASPECT"), getenv("LSD_RESOLUTION"), getenv("LSD_SCALE"),
         getenv("LSD_PACE"),   getenv("LSD_SMOOTH"),     getenv("LSD_FRAME_RATE"),
-        getenv("LSD_DRAW_DISTANCE"),
+        getenv("LSD_DRAW_DISTANCE"), getenv("LSD_DITHER"), getenv("LSD_COLOUR"),
     };
     for (int i = 1; i < argc - 1; i++) {
         const char* value = argv[i + 1];
@@ -168,6 +169,10 @@ int main(int argc, char** argv) {
             settings.frameRate = value;
         } else if (strcmp(argv[i], "--draw-distance") == 0) {
             settings.drawDistance = value;
+        } else if (strcmp(argv[i], "--dither") == 0) {
+            settings.dither = value;
+        } else if (strcmp(argv[i], "--colour") == 0) {
+            settings.colour = value;
         }
     }
     if (disc == NULL) {
