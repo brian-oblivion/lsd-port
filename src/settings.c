@@ -9,11 +9,12 @@
 //   draw_distance = 1       the dream's fog N times further away, 1 to 4
 //   dither = on             the console's 4x4 dither pattern, or off
 //   colour = console        console (15-bit) | full (24-bit, no dither)
+//   geometry = console      console | precise | perspective
 // The command line (--aspect, --resolution, --scale, --pace, --smooth,
-// --frame-rate, --draw-distance, --dither, --colour) and the environment
-// (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,
-// LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER, LSD_COLOUR) win over the
-// file.
+// --frame-rate, --draw-distance, --dither, --colour, --geometry) and the
+// environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,
+// LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY)
+// win over the file.
 
 #include "settings.h"
 #include "draw_distance.h"
@@ -37,11 +38,12 @@ typedef struct {
     int drawDistance;
     int dither;
     PsyzColorDepth colour;
+    PsyzGeometry geometry;
 } Settings;
 
 static const Settings sDefaults = {
     4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1, 1,
-    PSYZ_COLOR_DEPTH_15,
+    PSYZ_COLOR_DEPTH_15, PSYZ_GEOMETRY_CONSOLE,
 };
 
 static const struct {
@@ -58,9 +60,9 @@ static const struct {
 static const char sDefaultFile[] =
     "# LSD: Dream Emulator settings. The command line (--aspect, --resolution,\n"
     "# --scale, --pace, --smooth, --frame-rate, --draw-distance, --dither,\n"
-    "# --colour) and the environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE,\n"
-    "# LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER,\n"
-    "# LSD_COLOUR) win over this file.\n"
+    "# --colour, --geometry) and the environment (LSD_ASPECT, LSD_RESOLUTION,\n"
+    "# LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE,\n"
+    "# LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY) win over this file.\n"
     "# Delete it to get the defaults back.\n"
     "\n"
     "# The dream's width:height. 4:3 is the console's picture; a wider one,\n"
@@ -101,7 +103,13 @@ static const char sDefaultFile[] =
     "\n"
     "# console: colour rounded to the console's 15 bits. full: 24 bits, with\n"
     "# smooth shading and no dithering (whatever dither says).\n"
-    "colour = console\n";
+    "colour = console\n"
+    "\n"
+    "# console: the 3D's corners on whole pixels and its textures mapped flat,\n"
+    "# so the ground wobbles as the view moves and textures bend near it.\n"
+    "# precise: the corners where they fall between pixels. perspective:\n"
+    "# precise, and the textures in perspective.\n"
+    "geometry = console\n";
 
 static int ParseResolution(const char* s, int* out) {
     char* end;
@@ -180,6 +188,19 @@ static int ParseColour(const char* s, PsyzColorDepth* out) {
     return 0;
 }
 
+static int ParseGeometry(const char* s, PsyzGeometry* out) {
+    if (SDL_strcasecmp(s, "console") == 0) {
+        *out = PSYZ_GEOMETRY_CONSOLE;
+    } else if (SDL_strcasecmp(s, "precise") == 0) {
+        *out = PSYZ_GEOMETRY_PRECISE;
+    } else if (SDL_strcasecmp(s, "perspective") == 0) {
+        *out = PSYZ_GEOMETRY_PERSPECTIVE;
+    } else {
+        return -1;
+    }
+    return 0;
+}
+
 // IniApplyFn for settings.ini, into the Settings ctx.
 static int ApplySetting(void* ctx, const char* name, char* value, const char* path, int lineNo) {
     Settings* set = ctx;
@@ -233,6 +254,12 @@ static int ApplySetting(void* ctx, const char* name, char* value, const char* pa
             return 0;
         }
         fprintf(stderr, "lsd: %s:%d: colour wants console or full\n", path, lineNo);
+    } else if (SDL_strcasecmp(name, "geometry") == 0) {
+        if (ParseGeometry(value, &set->geometry) == 0) {
+            return 0;
+        }
+        fprintf(stderr, "lsd: %s:%d: geometry wants console, precise or perspective\n", path,
+                lineNo);
     } else {
         fprintf(stderr, "lsd: %s:%d: no setting %s\n", path, lineNo, name);
     }
@@ -298,6 +325,10 @@ int SetUpSettings(const char* savesDir, const SettingArgs* args,
         error("--colour wants console or full (got %s)", args->colour);
         return -1;
     }
+    if (args->geometry != NULL && ParseGeometry(args->geometry, &set.geometry) != 0) {
+        error("--geometry wants console, precise or perspective (got %s)", args->geometry);
+        return -1;
+    }
 
     Widescreen_Init(set.aspect);
     Psyz_VideoSetInternalResolution((unsigned)set.resolution);
@@ -306,5 +337,9 @@ int SetUpSettings(const char* savesDir, const SettingArgs* args,
     DrawDistance_Init(set.drawDistance);
     Psyz_VideoSetDitheringMode(set.dither ? PSYZ_DITHER_AUTO : PSYZ_DITHER_OFF);
     Psyz_VideoSetColorDepth(set.colour);
+    if (Psyz_VideoSetGeometry(set.geometry) != 0) {
+        fprintf(stderr, "lsd: geometry: this build has only the console's "
+                        "(LSD_PRECISE_GEOMETRY is off)\n");
+    }
     return 0;
 }

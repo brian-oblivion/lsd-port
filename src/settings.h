@@ -13,10 +13,11 @@ typedef struct {
     const char* drawDistance;
     const char* dither;
     const char* colour;
+    const char* geometry;
 } SettingArgs;
 
 // The settings: aspect, resolution, scale, pace, smooth, frame_rate,
-// draw_distance, dither and colour, from the command line or environment
+// draw_distance, dither, colour and geometry, from the command line or environment
 // (args), else from <savesDir>settings.ini (written with the defaults when
 // missing), else the defaults. Applies them to psyz and the dream
 // (src/widescreen.c, src/pacing.c, src/draw_distance.c). Returns 0, or -1

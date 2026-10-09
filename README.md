@@ -157,6 +157,15 @@ The command line and the environment win over it (the table under
   shading and fog at 24 bits, so darker and fogged surfaces keep the
   detail the console's 15 bits round away, and turns dithering off
   whatever `dither` says. `console` rounds as the console does.
+- `geometry = console` (`--geometry`, `LSD_GEOMETRY`): the console puts
+  every corner of the 3D on a whole pixel of its 320x240 screen and maps
+  textures flat across each polygon, so at a higher `resolution` the
+  ground and walls wobble as the view moves and textures bend on large
+  polygons close by. `precise` draws the corners where they really fall
+  between pixels; `perspective` does that and maps the textures in
+  perspective too. Sprites, the 2D and anything the game places itself
+  stay on whole pixels. Needs a build with `LSD_PRECISE_GEOMETRY` (the
+  default; see "Building").
 
 ## Pace
 
@@ -219,6 +228,7 @@ Options, all optional:
 | `--draw-distance N` | `LSD_DRAW_DISTANCE` | the dream's fog N times further away, 1 (default) to 4 ("Picture") |
 | `--dither on\|off` | `LSD_DITHER` | the console's dither pattern, `on` (default) or `off` ("Picture") |
 | `--colour console\|full` | `LSD_COLOUR` | 15-bit colour (`console`, default) or 24-bit (`full`) ("Picture") |
+| `--geometry MODE` | `LSD_GEOMETRY` | `console` (default), `precise` or `perspective` ("Picture") |
 | `--frames N` | | exit after N frames (for tests) |
 | | `LSD_VSYNC` | frame pacing: `auto`, `on` (the display's VSync), `off` (psyz's own limiter), `limitless` |
 | | `LSD_DEBUG_PORT` | psyz's debug server on 127.0.0.1 at that port (screenshots, input) |
@@ -274,6 +284,10 @@ cmake --build build
 ```
 
 The options are under "Running a release".
+
+`-DLSD_PRECISE_GEOMETRY=OFF` builds without the `geometry` setting's
+`precise` and `perspective` (psyz then keeps no precise vertices beside the
+console's, and `geometry` is always `console`); it is on by default.
 
 The 32-bit build (i686) plays as the 64-bit one does (checked tick for
 tick and frame for frame, `docs/design.md`); it keeps the PS1's 4-byte
