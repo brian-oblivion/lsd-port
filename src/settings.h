@@ -11,16 +11,18 @@ typedef struct {
     const char* smooth;
     const char* frameRate;
     const char* drawDistance;
+    const char* dither;
+    const char* colour;
 } SettingArgs;
 
-// The settings: aspect, resolution, scale, pace, smooth, frame_rate and
-// draw_distance, from the command line or environment (args), else from
-// <savesDir>settings.ini (written with the defaults when missing), else the
-// defaults. Applies them to psyz and the dream (src/widescreen.c,
-// src/pacing.c, src/draw_distance.c). Returns 0, or -1 after StartError-style
-// reporting when a command-line or environment value is malformed; a bad line
-// in the file is reported on stderr and its default used. savesDir ends in a
-// separator.
+// The settings: aspect, resolution, scale, pace, smooth, frame_rate,
+// draw_distance, dither and colour, from the command line or environment
+// (args), else from <savesDir>settings.ini (written with the defaults when
+// missing), else the defaults. Applies them to psyz and the dream
+// (src/widescreen.c, src/pacing.c, src/draw_distance.c). Returns 0, or -1
+// after StartError-style reporting when a command-line or environment value
+// is malformed; a bad line in the file is reported on stderr and its default
+// used. savesDir ends in a separator.
 int SetUpSettings(const char* savesDir, const SettingArgs* args,
                   void (*error)(const char* fmt, ...));
 

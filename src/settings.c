@@ -7,10 +7,13 @@
 //   smooth = on             frames drawn between the dream's ticks
 //   frame_rate = 60         their rate: 60, display, or 30 to 360
 //   draw_distance = 1       the dream's fog N times further away, 1 to 4
+//   dither = on             the console's 4x4 dither pattern, or off
+//   colour = console        console (15-bit) | full (24-bit, no dither)
 // The command line (--aspect, --resolution, --scale, --pace, --smooth,
-// --frame-rate, --draw-distance) and the environment (LSD_ASPECT,
-// LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE,
-// LSD_DRAW_DISTANCE) win over the file.
+// --frame-rate, --draw-distance, --dither, --colour) and the environment
+// (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,
+// LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER, LSD_COLOUR) win over the
+// file.
 
 #include "settings.h"
 #include "draw_distance.h"
@@ -32,10 +35,13 @@ typedef struct {
     int smooth;
     int frameRate;
     int drawDistance;
+    int dither;
+    PsyzColorDepth colour;
 } Settings;
 
 static const Settings sDefaults = {
-    4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1,
+    4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1, 1,
+    PSYZ_COLOR_DEPTH_15,
 };
 
 static const struct {
@@ -51,9 +57,10 @@ static const struct {
 
 static const char sDefaultFile[] =
     "# LSD: Dream Emulator settings. The command line (--aspect, --resolution,\n"
-    "# --scale, --pace, --smooth, --frame-rate, --draw-distance) and the\n"
-    "# environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE,\n"
-    "# LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE) win over this file.\n"
+    "# --scale, --pace, --smooth, --frame-rate, --draw-distance, --dither,\n"
+    "# --colour) and the environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE,\n"
+    "# LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER,\n"
+    "# LSD_COLOUR) win over this file.\n"
     "# Delete it to get the defaults back.\n"
     "\n"
     "# The dream's width:height. 4:3 is the console's picture; a wider one,\n"
@@ -86,7 +93,15 @@ static const char sDefaultFile[] =
     "# How far the dream shows before it fades into the fog, 1 to 4: the fog\n"
     "# N times further away, never past the clearest a stage has. 1 is the\n"
     "# console's.\n"
-    "draw_distance = 1\n";
+    "draw_distance = 1\n"
+    "\n"
+    "# on: the console's 4x4 dither pattern over shading, which at a higher\n"
+    "# resolution shows as grain. off: none, and the colour shows in bands.\n"
+    "dither = on\n"
+    "\n"
+    "# console: colour rounded to the console's 15 bits. full: 24 bits, with\n"
+    "# smooth shading and no dithering (whatever dither says).\n"
+    "colour = console\n";
 
 static int ParseResolution(const char* s, int* out) {
     char* end;
@@ -154,6 +169,17 @@ static int ParseOnOff(const char* s, int* out) {
     return 0;
 }
 
+static int ParseColour(const char* s, PsyzColorDepth* out) {
+    if (SDL_strcasecmp(s, "console") == 0) {
+        *out = PSYZ_COLOR_DEPTH_15;
+    } else if (SDL_strcasecmp(s, "full") == 0) {
+        *out = PSYZ_COLOR_DEPTH_24;
+    } else {
+        return -1;
+    }
+    return 0;
+}
+
 // IniApplyFn for settings.ini, into the Settings ctx.
 static int ApplySetting(void* ctx, const char* name, char* value, const char* path, int lineNo) {
     Settings* set = ctx;
@@ -197,6 +223,16 @@ static int ApplySetting(void* ctx, const char* name, char* value, const char* pa
         }
         fprintf(stderr, "lsd: %s:%d: draw_distance wants %d to %d\n", path, lineNo,
                 DRAW_DISTANCE_MIN, DRAW_DISTANCE_MAX);
+    } else if (SDL_strcasecmp(name, "dither") == 0) {
+        if (ParseOnOff(value, &set->dither) == 0) {
+            return 0;
+        }
+        fprintf(stderr, "lsd: %s:%d: dither wants on or off\n", path, lineNo);
+    } else if (SDL_strcasecmp(name, "colour") == 0) {
+        if (ParseColour(value, &set->colour) == 0) {
+            return 0;
+        }
+        fprintf(stderr, "lsd: %s:%d: colour wants console or full\n", path, lineNo);
     } else {
         fprintf(stderr, "lsd: %s:%d: no setting %s\n", path, lineNo, name);
     }
@@ -254,11 +290,21 @@ int SetUpSettings(const char* savesDir, const SettingArgs* args,
               args->drawDistance);
         return -1;
     }
+    if (args->dither != NULL && ParseOnOff(args->dither, &set.dither) != 0) {
+        error("--dither wants on or off (got %s)", args->dither);
+        return -1;
+    }
+    if (args->colour != NULL && ParseColour(args->colour, &set.colour) != 0) {
+        error("--colour wants console or full (got %s)", args->colour);
+        return -1;
+    }
 
     Widescreen_Init(set.aspect);
     Psyz_VideoSetInternalResolution((unsigned)set.resolution);
     Psyz_VideoSetScaleMode(set.scale);
     Pacing_Init(set.pace, set.smooth, set.frameRate);
     DrawDistance_Init(set.drawDistance);
+    Psyz_VideoSetDitheringMode(set.dither ? PSYZ_DITHER_AUTO : PSYZ_DITHER_OFF);
+    Psyz_VideoSetColorDepth(set.colour);
     return 0;
 }

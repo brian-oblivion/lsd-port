@@ -149,6 +149,14 @@ The command line and the environment win over it (the table under
   ones stay as they are. Far out the ground then ends at a straight edge
   against the sky, as it does on those stages on the console: the game
   draws only so many squares of ground ahead. 1 is the console's.
+- `dither = on` (`--dither`, `LSD_DITHER`): the console's 4x4 dither
+  pattern, over the lit and shaded 3D and over the menus and movies too.
+  Scaled up with `resolution`, it shows as a fine grain; `off` drops it,
+  and the console's 15-bit colour then shows in steps instead.
+- `colour = console` (`--colour`, `LSD_COLOUR`): `full` keeps lighting,
+  shading and fog at 24 bits, so darker and fogged surfaces keep the
+  detail the console's 15 bits round away, and turns dithering off
+  whatever `dither` says. `console` rounds as the console does.
 
 ## Pace
 
@@ -209,6 +217,8 @@ Options, all optional:
 | `--smooth on\|off` | `LSD_SMOOTH` | frames drawn between the dream's steps, `on` (default) or `off` ("Pace") |
 | `--frame-rate N\|display` | `LSD_FRAME_RATE` | with smooth on, the dream's frames a second: `60` (default), `display` or 30 to 360 ("Pace") |
 | `--draw-distance N` | `LSD_DRAW_DISTANCE` | the dream's fog N times further away, 1 (default) to 4 ("Picture") |
+| `--dither on\|off` | `LSD_DITHER` | the console's dither pattern, `on` (default) or `off` ("Picture") |
+| `--colour console\|full` | `LSD_COLOUR` | 15-bit colour (`console`, default) or 24-bit (`full`) ("Picture") |
 | `--frames N` | | exit after N frames (for tests) |
 | | `LSD_VSYNC` | frame pacing: `auto`, `on` (the display's VSync), `off` (psyz's own limiter), `limitless` |
 | | `LSD_DEBUG_PORT` | psyz's debug server on 127.0.0.1 at that port (screenshots, input) |
