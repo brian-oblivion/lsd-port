@@ -787,3 +787,76 @@ the GTE's.
   `perspective` 329, `precise` 346.
 - Builds: x86_64 Vulkan and OpenGL, `LSD_PRECISE_GEOMETRY=OFF`, i686,
   with only the two old warnings; psyz's tests 319 passed.
+
+## Settings menu (task 21, 2026-10-09)
+
+F1, or a gamepad's Guide button or both sticks pressed in, opens a menu
+over the game (`src/menu.cpp`) with every setting of `settings.ini` and
+the keyboard's keys.
+
+### Drawing it
+
+Dear ImGui, through the overlay hooks psyz already had: after psyz blits
+the PlayStation's display into the window, it calls the overlay's frame
+callback, and with SDL GPU a render callback inside a render pass on the
+swapchain texture; with OpenGL the frame callback draws straight into the
+default framebuffer before the swap. So the menu is drawn into the window's
+own buffer and never into the game's VRAM, and the debug server's
+screenshots and VRAM dumps (which read the VRAM) don't show it. The
+backends are Dear ImGui's own (`imgui_impl_sdl3`, `imgui_impl_sdlgpu3`,
+`imgui_impl_opengl3`), from the copy in psyz's `external/cimgui`
+submodule; cimgui's C bindings are not used, as they have no SDL GPU
+backend, so `src/menu.cpp` is the port's one C++ file. SDL GPU wants a
+frame's vertices uploaded outside a render pass: the menu does that in a
+command buffer of its own, submitted ahead of psyz's. The alternative,
+drawing the menu with psyz's 2D primitives, would have put it in the VRAM
+(and in screenshots) and needed a font and widgets of our own.
+
+While the menu is shut no Dear ImGui frame is built and no events are
+passed to it, so it costs nothing and its event queue stays empty.
+
+### Input
+
+`Psyz_PadsHold` (psyz): while held, the pads the keyboard and gamepads
+drive read as connected with nothing pressed and the sticks centred, and
+Escape doesn't quit; once released, a button still held reads as released
+until it is let go. The game keeps running: a dream's clock and its music
+go on (the game's own pause is START; pausing for it would mean changing
+the game's state). The debug server's injected input is not held, and
+lockstep drives the pads above psyz, so neither is affected.
+
+### What changes when
+
+The settings were applied once at start; now each module can take a
+change while the game runs, and the menu's changes reach them from a VSync
+callback, between the game's frames, not inside psyz's present (where the
+menu runs, and where a new internal resolution would recreate the render
+targets of the frame being presented).
+
+| setting | when | how |
+| --- | --- | --- |
+| resolution, scale, dither, colour, geometry | at once | psyz's setters |
+| pace, smooth, frame_rate | at once, also mid-dream | `Pacing_Set`; `PacedRunLoop` is now always installed and runs the game's own loop at pace 20 without smooth, as `DrawSystem__RunLoop` does |
+| draw_distance | at once, also mid-dream | the wrapper keeps the game's fog distance and the dream's Viewport, and gives it the new one; its update hands it on |
+| aspect | next dream | `Widescreen_Set`; the ratio is taken up at DayTask's onInit (the GTE squeeze, the display stretch, the footprint widening), the window keeps its shape |
+| keys | at once | `Psyz_PadsSetKeyboardMap` |
+
+Aspect waits for the next dream because the dream's VariantSprites are
+made un-plain when they are created (`src/widescreen.c`), and the StageMap's
+extra cells follow the ratio of the dream they were shown in.
+
+The wrappers for pace, aspect and draw distance are installed whatever the
+settings say, so they must leave the game alone at the console's values:
+lockstep (x86_64 Debug, Natural World day 5 spawn 3/30, seed 1234,
+resolution 6, walking and turning) gives the same STATE and SAVEBLK lines
+as `main` at the defaults, at pace 20 without smooth, and at 16:9 with
+draw distance 3, over the whole day (3 622 lines each).
+
+### Saving
+
+`Ini_Update` (`src/ini.c`) rewrites only the lines that set what changed
+(a comment after the value stays), uncomments a `# name = ...` line when
+the setting is set nowhere else, appends otherwise, and leaves every other
+line as it is; it writes a `.new` file and renames it over the old one. A
+setting given on the command line or in the environment is shown greyed
+with its option, can't be changed, and is never written.

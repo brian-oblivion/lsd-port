@@ -31,6 +31,7 @@ jobs:
         run: |
           git submodule update --init decomp psyz
           git -C psyz submodule update --init external/SDL external/cimgui
+          git -C psyz/external/cimgui submodule update --init imgui
 
       - name: Install requirements
         run: |

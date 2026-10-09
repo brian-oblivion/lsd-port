@@ -201,5 +201,13 @@ answered in that list; the operator approved it on 2026-10-02.
     map chunks (StageMap's tracking rewritten), not done. Lockstep shows
     identical state at 1 and 4. `src/draw_distance.c`, `docs/design.md`
     ("Draw distance").
+  - `settings-menu` (task 21): F1, or a pad's Guide button or both
+    sticks, opens a Dear ImGui menu over the game (psyz's overlay hooks,
+    on both renderers) with every setting and the keyboard's keys; it
+    applies them at once (aspect from the next dream), writes them back
+    into `settings.ini` and `controls.ini` keeping the rest of the files,
+    and holds the keys and pads from the game while open
+    (`Psyz_PadsHold`). `src/menu.cpp`, `docs/design.md` ("Settings
+    menu").
   - `mouse-look`: dropped by the operator (2026-10-04).
   - bug fixes behind options.

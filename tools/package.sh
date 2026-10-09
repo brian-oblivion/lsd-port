@@ -25,7 +25,7 @@ cp LICENSE "$dir/LICENSE.txt"
     echo "LSD: Dream Emulator, native port ($name)"
     echo "https://github.com/brian-oblivion/lsd-port"
     echo
-    for section in "The game" "Saves" "Controls" "Picture" "Running a release" "Known differences from the console"; do
+    for section in "The game" "Saves" "Controls" "Picture" "Pace" "The settings menu" "Running a release" "Known differences from the console"; do
         awk -v s="## $section" '$0 == s {on = 1; print; next} /^## / {on = 0} on' README.md
     done
 } > "$dir/README.txt"
@@ -36,6 +36,13 @@ cp decomp/LICENSE "$l/lsddecomp-CC0.txt"
 cp psyz/LICENSE "$l/psyz-LICENSE-map.txt"
 cp psyz/decomp/LICENSE "$l/psyz-decomp-MIT.txt"
 cp psyz/external/SDL/LICENSE.txt "$l/SDL3-zlib.txt"
+imgui=psyz/external/cimgui/imgui
+{
+    cat "$imgui/LICENSE.txt"
+    echo
+    echo "Its built-in fonts (imgui_draw.cpp), ProggyClean and ProggyForever, are MIT too:"
+    grep -h -E '^// (MIT License|MIT license|Based on Proggy)' "$imgui/imgui_draw.cpp"
+} > "$l/dear-imgui-MIT.txt"
 sed -n '/^This software is available under 2 licenses/,/^\*\//p' \
     psyz/psyz/src/dbgserver/stb_image_write.h > "$l/stb_image_write.txt"
 if [ -n "${MPL_TEXT:-}" ]; then
@@ -69,6 +76,7 @@ esac
     echo "lsd-psyz  https://github.com/brian-oblivion/lsd-psyz  $(git -C psyz rev-parse HEAD)"
     echo "lsddecomp https://github.com/brian-oblivion/lsddecomp $(git -C decomp rev-parse HEAD)"
     echo "SDL       https://github.com/libsdl-org/SDL           $(git -C psyz/external/SDL rev-parse HEAD)"
+    echo "Dear ImGui https://github.com/ocornut/imgui           $(git -C "$imgui" rev-parse HEAD)"
     echo
     echo "What is linked in, and under which licence:"
     echo
@@ -80,8 +88,14 @@ esac
     echo "- psyz's SDK headers (psyz/include/): unlicensed, psyz-LICENSE-map.txt"
     echo "- stb_image_write (psyz's debug server): MIT or public domain, stb_image_write.txt"
     echo "- SDL 3, linked statically: zlib, SDL3-zlib.txt"
+    echo "- Dear ImGui (the settings menu) and its fonts, ProggyClean and"
+    echo "  ProggyForever: MIT, dear-imgui-MIT.txt"
     case $bin in
-    *.exe) echo "- the MinGW-w64 runtime and winpthreads: mingw-w64-runtime.txt" ;;
+    *.exe)
+        echo "- the MinGW-w64 runtime and winpthreads: mingw-w64-runtime.txt"
+        echo "- GCC's libgcc and libstdc++: GPL 3 with the GCC Runtime Library Exception,"
+        echo "  which leaves the program's own terms as they are"
+        ;;
     esac
 } > "$l/SOURCES.txt"
 

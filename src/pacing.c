@@ -33,7 +33,9 @@
 //    a tick comes when its time has come (pace * 59.94 / 60 a second, as
 //    above), and the passes between draw the world as far between the two
 //    ticks as their time is (TimedPass).
-// Menus, the post-day graph and the movies keep the game's own loop.
+// Menus, the post-day graph and the movies keep the game's own loop, and so
+// does the dream at 20 without smooth. The settings menu (src/menu.cpp)
+// changes pace, smooth and frame_rate while this loop runs (Pacing_Set).
 //
 // Built with the game's C (it needs DayTask's and DrawSystem's method
 // tables), not with the port's other files.
@@ -495,7 +497,7 @@ static void PacedRunLoop(DrawSystem* self) {
     int interval = 1; // passes from the last tick to the next
 
     while (self->running != 0) {
-        if (sViewport == NULL) {
+        if (sViewport == NULL || (sPace == PACING_PACE_GAME && !sSmooth)) {
             VSync(self->vsyncCount);
             phase = 0;
             pass = 0;
@@ -553,13 +555,17 @@ static void PacedDayTaskOnDeinit(DayTask* self) {
     sDayTaskOnDeinit(self);
 }
 
-void Pacing_Init(int pace, int smooth, int frameRate) {
-    if (pace == PACING_PACE_GAME && !smooth) {
-        return; // the game's own pacing
+void Pacing_Set(int pace, int smooth, int frameRate) {
+    if (smooth != sSmooth) {
+        sHaveDrawn = 0; // what was recorded before is stale
     }
     sPace = pace;
     sSmooth = smooth;
     sFrameRate = frameRate;
+}
+
+void Pacing_Init(int pace, int smooth, int frameRate) {
+    Pacing_Set(pace, smooth, frameRate);
     gDrawSystemMethods.runLoop = PacedRunLoop;
     sDayTaskOnInit = gDayTaskMethods.onInit;
     sDayTaskOnDeinit = gDayTaskMethods.onDeinit;

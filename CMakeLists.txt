@@ -13,7 +13,7 @@ if(NOT CMAKE_TOOLCHAIN_FILE AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux"
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/linux-i686.cmake)
 endif()
 
-project(lsd-port C)
+project(lsd-port C CXX)
 message(STATUS "lsd-port: ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}, "
                "${CMAKE_SIZEOF_VOID_P}-byte pointers")
 # A build directory keeps the compiler it was configured with, whatever
@@ -29,6 +29,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 # The platform layer: psyz (brian-oblivion/lsd-psyz, a fork of Xeeynamo/psyz).
 # It builds SDL3 from its own submodule and links it statically.
@@ -62,8 +63,38 @@ target_compile_options(lsd_game PRIVATE -include psyz.h -funsigned-char)
 set_source_files_properties(${LSD_DECOMP_DIR}/src/main.c PROPERTIES
     COMPILE_DEFINITIONS main=lsd_game_main)
 
-add_executable(lsd src/main.c src/controls.c src/ini.c src/settings.c)
-target_link_libraries(lsd PRIVATE lsd_game psyz)
+# The settings menu (src/menu.cpp) is Dear ImGui, from psyz's cimgui
+# submodule (psyz/external/cimgui/imgui), drawn through the backend of psyz's
+# renderer. The C bindings (cimgui) are not used: they have no SDL GPU
+# backend, and src/menu.cpp is C++.
+set(LSD_IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/psyz/external/cimgui/imgui)
+if(NOT EXISTS ${LSD_IMGUI_DIR}/imgui.h)
+    message(FATAL_ERROR "no Dear ImGui in ${LSD_IMGUI_DIR}: run "
+        "git -C psyz/external/cimgui submodule update --init imgui")
+endif()
+set(LSD_IMGUI_SOURCES imgui.cpp imgui_draw.cpp imgui_tables.cpp imgui_widgets.cpp
+    backends/imgui_impl_sdl3.cpp)
+if(PSYZ_RENDERER STREQUAL "sdl3_gl")
+    list(APPEND LSD_IMGUI_SOURCES backends/imgui_impl_opengl3.cpp)
+else()
+    list(APPEND LSD_IMGUI_SOURCES backends/imgui_impl_sdlgpu3.cpp)
+endif()
+list(TRANSFORM LSD_IMGUI_SOURCES PREPEND ${LSD_IMGUI_DIR}/)
+add_library(lsd_imgui STATIC ${LSD_IMGUI_SOURCES})
+target_include_directories(lsd_imgui PUBLIC ${LSD_IMGUI_DIR} ${LSD_IMGUI_DIR}/backends)
+# SDL's clipboard, IME and URL opening, not Win32's own.
+target_compile_definitions(lsd_imgui PUBLIC IMGUI_DISABLE_WIN32_FUNCTIONS
+    IMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS)
+target_link_libraries(lsd_imgui PUBLIC SDL3::SDL3 ${CMAKE_DL_LIBS})
+
+add_executable(lsd src/main.c src/controls.c src/ini.c src/settings.c src/menu.cpp)
+target_link_libraries(lsd PRIVATE lsd_game psyz lsd_imgui)
+if(PSYZ_RENDERER STREQUAL "sdl3_gpu")
+    target_compile_definitions(lsd PRIVATE LSD_MENU_SDL3_GPU)
+endif()
+if(LSD_PRECISE_GEOMETRY)
+    target_compile_definitions(lsd PRIVATE LSD_PRECISE_GEOMETRY)
+endif()
 
 # Clang (macOS's compiler, and LSD_CFI's): without noundef it doesn't delete
 # code that passes an uninitialized variable. TmdModel__RaycastFaces passes
