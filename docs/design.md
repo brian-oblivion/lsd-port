@@ -663,3 +663,127 @@ Where 8 bits can't reach, and why it doesn't matter here:
 - Frame times (RelWithDebInfo, resolution 6, psyz's draw time over 30 s
   standing in the first dream's room): medians 314 µs (defaults), 313
   (dither off), 307 (full colour), within run-to-run noise.
+
+## Precise geometry (task 20, 2026-10-09)
+
+The PS1's GTE hands the game each projected vertex as a 16-bit screen X and
+Y, and its GPU draws every vertex on a whole pixel of the 320x240 screen and
+maps textures affinely. At `resolution 6` the rounding shows as the ground
+and walls wobbling while the view moves (a vertex jumps a whole console
+pixel, six screen pixels, at a time), and the affine mapping as textures
+bending across large polygons near the camera. `geometry = precise` draws
+the vertices the GTE projected where they really fall; `perspective` also
+maps their textures in perspective. `console` is the default, and a build
+with `-DLSD_PRECISE_GEOMETRY=OFF` (psyz's `PSYZ_PRECISE_GEOMETRY`) leaves
+the machinery out.
+
+### Carrying a precise vertex from the GTE to the GPU
+
+DuckStation's PGXP keeps a precise value beside every memory word the CPU
+stores an SXY to, and follows the word through the CPU's loads and stores.
+psyz has no CPU to watch: the game is C, and its copies are plain C
+assignments. The options:
+
+- **A cache keyed by the 32-bit SXY value.** Survives any copy, but two
+  vertices that land on the same pixel in a frame share an entry. Their
+  positions differ by under a pixel, but their depths need not: a near and
+  a far vertex on one pixel would give a polygon the wrong w, and a texture
+  bent the other way. Rejected.
+- **Re-projecting at draw time** from the model vertex. The packets don't
+  carry it. Rejected.
+- **A table keyed by the address the SXY was stored to** (chosen): the GTE
+  keeps a precise vertex beside each entry of its SXY FIFO, and each of
+  psyz's SXY stores (`gte_stsxy*`, the `StoreSxyPoly*` macros,
+  `RotTransPers*`/`RotAverage*`) files it under the destination address,
+  with the 32-bit word it wrote and the frame. When a primitive is queued
+  (`GPU_Enqueue`, while the packet is still at the address the game built
+  it), each word is looked up; a hit counts only if the word still holds
+  the stored value and was stored this frame or the last. A copy through
+  C, or a value the game changed, misses and is drawn from its 16-bit
+  value, as the console draws it.
+
+What the game does between the two, and how it fares:
+
+- `SortTmdObject`'s faces (`ProjectTriFace`/`ProjectQuadFace`) store the
+  GTE's FIFO straight into the POLY_xx packet: precise.
+- Copies: `TransformAndCullPoly` stores the SXYs into its context as well,
+  for `FlagLargePolyForDivide` and the subdivider; those entries are only
+  read by the game. `FillRVectors` copies a packet's SXYs into the
+  DIVPOLYGON in C, so psyz's `RCpoly*` takes each corner's precise vertex
+  from the packet at `s` (the same words, checked for equality) and
+  carries it, and the midpoints it projects itself, into every primitive
+  it emits.
+- Subdivision decisions (`FlagLargePolyForDivide`'s 256-pixel box, the
+  near and window rejection in `RCpoly*`), back-face culling (`nclip`),
+  the OT slot (`avsz3`) and the depth cue all read the 16-bit values, which
+  are unchanged.
+- Sprites: world sprites are projected by the game on the CPU
+  (`Viewport__DrawNode`, an integer divide); psyz's `GsSortSprite` corners
+  go through locals. Both stay on whole pixels.
+
+Each vertex decides for itself: a polygon draws the vertices that have a
+precise value there and the others on their whole pixels, so a vertex
+shared by two polygons is in the same place in both (deciding per polygon
+left cracks where one neighbour fell back). The precise position is the
+true projection even where the GTE's is not a rounding of it (SZ saturated
+far away, IR or SX/SY clamped), for the same reason; only a vertex at or
+behind the eye (or a projection past the GPU's ±32768) has none.
+Perspective needs a depth at every vertex, so a polygon with any vertex
+missing is mapped affinely.
+
+### On the GPU
+
+The vertex format carries x, y as floats and a w. A primitive drawn with
+perspective has a spare TPAGE bit (`TPAGE_PRECISE`, 0x0800); its vertex
+shader outputs `(x·w, y·w, 0, w)`, so the UV is interpolated with
+perspective, while its colour comes through a `noperspective` copy, as the
+console's Gouraud shading is (GLSL ES has no `noperspective`; there colour
+is interpolated with perspective too). The texel rules (texture window,
+CLUT lookup, `resolveTexel`'s sample point) are applied to the
+interpolated UV as before. Without the bit w is 1 and every vertex is on
+a whole pixel, which draws exactly what it did.
+
+### In motion
+
+With `console`, walking and turning at resolution 6, the ground's polygon
+edges step a console pixel (six screen pixels) at a time, the grass folds
+into chevrons along each quad's diagonal, and thin seams of sky open and
+close between ground polygons from one tick to the next. `precise` puts the
+edges where they belong and closes the seams, but the texture still bends
+at the diagonals and shifts where a polygon switches between subdivided and
+whole (the 256-pixel box). `perspective` removes the bend and the switching
+too; Natural World's water shows even squares of texels instead of skewed
+ones, and Kyoto's raked gravel, a zig-zag of folds under `console`, runs
+in straight lines.
+
+What still moves in steps with `perspective`: sprites (the game rounds a
+world sprite's position itself, and psyz's `GsSortSprite` corners pass
+through locals), the 2D, and any vertex at or behind the eye. Slits where
+the game's own models don't meet (under Natural World's cliffs) are there
+in every mode. The in-between frames of `smooth` project again, so they
+are precise too, and widescreen's X squeeze applies to the precise X as to
+the GTE's.
+
+### Checked
+
+- Coverage over Natural World day 5 (a scratch counter in `Draw_PushPrim`):
+  4.80 M quads and 273 k triangles with every vertex precise, 129
+  triangles partly, and 407 k quads with none: the intro and menu's 2D.
+- Lockstep (x86_64 Debug, resolution 6, seed 1234, a STATE line every
+  tick): Natural World day 5 spawn 3/30, `main` against this branch at
+  `console` and `perspective`: identical STATE and SAVEBLK over 3 199
+  ticks; a turn-and-walk run at `console`, `precise` and `perspective`:
+  identical. Kyoto day 5 spawn 2/0, `console` against `perspective`: identical
+  over 3 200 ticks. OpenGL (on Xvfb), `main`, `console` and
+  `perspective`: identical over 2 064 ticks.
+- Defaults against `main`, 1920x1440 (task 19's scratch capture), Vulkan:
+  the menu and two freezes byte-identical; the other two differ only in
+  water-blue pixels (the water scrolls on frame time while the dream clock
+  is frozen, task 19). OpenGL at 320x240: the menu and one freeze
+  identical, the other three differ only on the water and its reflections
+  (75 to 95 % water-blue).
+- Frame time (RelWithDebInfo, resolution 6, psyz's draw time over 30 s in
+  the first dream's room): medians `main` 247 µs, `console` 256,
+  `perspective` 329, `precise` 346.
+- Builds: x86_64 Vulkan and OpenGL, `LSD_PRECISE_GEOMETRY=OFF`, i686,
+  with only the two old warnings; psyz's tests 319 passed.

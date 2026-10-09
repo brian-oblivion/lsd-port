@@ -32,6 +32,11 @@ set(CMAKE_C_STANDARD 11)
 
 # The platform layer: psyz (brian-oblivion/lsd-psyz, a fork of Xeeynamo/psyz).
 # It builds SDL3 from its own submodule and links it statically.
+# LSD_PRECISE_GEOMETRY builds in the `geometry` setting's precise and
+# perspective modes (psyz's PSYZ_PRECISE_GEOMETRY); off, the GTE and the GPU
+# queue carry no precise vertices and the geometry is always the console's.
+option(LSD_PRECISE_GEOMETRY "Build in the precise and perspective geometry settings" ON)
+set(PSYZ_PRECISE_GEOMETRY ${LSD_PRECISE_GEOMETRY} CACHE BOOL "" FORCE)
 add_subdirectory(psyz/psyz EXCLUDE_FROM_ALL)
 
 # The game's C, from lsddecomp (decomp/). src/psyq/ is Sony code carried as C
