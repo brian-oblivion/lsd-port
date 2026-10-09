@@ -22,11 +22,12 @@
 //    pass does (the Viewport's flip, then its update), with every node that
 //    moved between where the last tick drew it and where its logic has since
 //    put it. The view hangs off DreamSys's coordinate, so that moves the
-//    camera too. Every coordinate the draw can touch is put back afterwards,
-//    so the game's state is what it was; only libgs's frame counter and the
-//    buffers move on. A move too large for one tick (a link, a respawn) is
-//    not blended, and a grid cell's moves are not either, only its scale
-//    (BlendKind).
+//    camera too. What the tick's draw computed is computed again, not taken
+//    from libgs's cache (BlendTree). Every coordinate the draw can touch is
+//    put back afterwards, so the game's state is what it was; only libgs's
+//    frame counter and the buffers move on. A move too large for one tick (a
+//    link, a respawn) is not blended, and a grid cell's moves are not
+//    either, only its scale (BlendKind).
 //  - with a frame_rate other than the console's (smooth on), the passes are
 //    the display's instead: each presents at that rate (Psyz_VideoPresent),
 //    a tick comes when its time has come (pace * 59.94 / 60 a second, as
@@ -110,6 +111,10 @@ static int sDrawnCount;
 static int sDrawnCap;
 static int sHaveDrawn;
 static Pose sCamera; // DreamSys's entry, which decides whether to blend at all
+
+// The frame stamp (libgs's PSDCNT) the last tick's draw gave the coordinates
+// it recomputed, in their flg; 0 before one.
+static u_long sTickStamp;
 
 // sDrawn's indices by node, open addressing; -1 is empty.
 static int* sIndex;
@@ -329,10 +334,33 @@ static void PutBlended(GsCOORDINATE2* coord, const Pose* a, const Pose* b, int s
     coord->flg = 0;
 }
 
+// libgs's frame stamp: what GsGetLw writes into the flg of a coordinate it
+// computes in this frame. PSDCNT itself is libgs's own, so a root coordinate
+// of our own, marked changed, is computed and its flg read.
+static u_long FrameStamp(void) {
+    static GsCOORDINATE2 probe;
+    MATRIX m;
+
+    probe.super = NULL;
+    probe.flg = 0;
+    GsGetLw(&probe, &m);
+    return probe.flg;
+}
+
 // Saves every coordinate of `node` and the SceneNodes below it, and puts each
 // recorded node that has moved since i / n of the way from its recorded pose
 // to its current one (or at its recorded pose, after a jump). A GridCell that
 // the StageMap has moved is drawn where it is now.
+//
+// A coordinate the tick's draw computed (its flg the tick's stamp) is marked
+// changed, so that this draw computes it again rather than reuse the cached
+// matrix (workm). The game's TMD sort, SortTmdObject, multiplies an object's
+// workm by its parent's in place once the GTE has its matrices; at one draw
+// a tick, the next tick's logic marks a moving model changed again first
+// (TodActor__Tick does every tick), so the multiplied workm is never read
+// back. Drawn again without a tick, an Entity's parts would come out with
+// the parent's rotation and scale applied twice (task 18: the fish at
+// Natural World).
 static void BlendTree(SceneNode* node, int i, int n) {
     BasicClassListNode* cursor = node->children;
     BasicClass* child;
@@ -346,6 +374,9 @@ static void BlendTree(SceneNode* node, int i, int n) {
         sSaved[sSavedCount].coord = coord;
         sSaved[sSavedCount].saved = *coord;
         sSavedCount++;
+        if (coord->flg == sTickStamp) {
+            coord->flg = 0;
+        }
     }
     if (kind != BLEND_NONE && (d = FindDrawn(node)) != NULL && d->coord == coord) {
         GetPose(node, &now);
@@ -502,6 +533,9 @@ static void PacedRunLoop(DrawSystem* self) {
             self->callback();
         }
         self->methods->notifyParents(self, DRAWSYSTEM_EVENT_VSYNC);
+        if (sSmooth && sViewport != NULL) {
+            sTickStamp = FrameStamp();
+        }
     }
 }
 
