@@ -3,7 +3,8 @@
 Branch `task-19-colour-depth` (lsd-port), not merged or pushed. psyz:
 `gpu-color-depth` (from `upstream/main` `9157560`, for an upstream PR) and
 `gpu-color-depth-lsd` (the same change on the fork's `main`), merged into
-the fork's `main` as `cc592fa`; nothing pushed. The details and numbers
+the fork's `main` as `540bb14` and pushed to the fork (the D3D12 headers
+regenerated with Microsoft's Linux DXC v1.9.2609). The details and numbers
 are in `docs/design.md`, "Dithering and colour depth".
 
 ## What was done
@@ -55,11 +56,6 @@ to scratch builds only).
 
 ## Open
 
-- **D3D12 headers not regenerated.** The system `dxc` (1.10 from Arch)
-  crashes on these shaders; the last regeneration used Microsoft's Linux
-  DXC release v1.9.2609 (psyz `d6a2dd4`). Until then D3D12 keeps the old
-  shaders, where full colour does nothing (the bit is ignored) and dither
-  off still works. Needs the release downloaded (a yes from the operator).
 - The 320x240 debug-server capture point-samples the scaled image, so at
   resolution > 1 it aliases the dither pattern into stripes; a full-size
   `/screenshot` option in psyz would help such checks (scratch patch only).
