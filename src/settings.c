@@ -7,14 +7,15 @@
 //   smooth = on             frames drawn between the dream's ticks
 //   frame_rate = 60         their rate: 60, display, or 30 to 360
 //   draw_distance = 1       the dream's fog N times further away, 1 to 4
+//   fog = console           console | soft (the map's edges kept in the fog)
 //   dither = on             the console's 4x4 dither pattern, or off
 //   colour = console        console (15-bit) | full (24-bit, no dither)
 //   geometry = console      console | precise | perspective
 // The command line (--aspect, --resolution, --scale, --pace, --smooth,
-// --frame-rate, --draw-distance, --dither, --colour, --geometry) and the
-// environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,
-// LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY)
-// win over the file.
+// --frame-rate, --draw-distance, --fog, --dither, --colour, --geometry) and
+// the environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE,
+// LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_FOG, LSD_DITHER,
+// LSD_COLOUR, LSD_GEOMETRY) win over the file.
 //
 // The settings menu (src/menu.cpp) changes them while the game runs and
 // writes those it changed back into the file (Ini_Update), leaving the
@@ -25,6 +26,7 @@
 #include "draw_distance.h"
 #include "ini.h"
 #include "pacing.h"
+#include "soft_fog.h"
 #include "widescreen.h"
 
 #include <psyz.h>
@@ -41,13 +43,14 @@ typedef struct {
     int smooth;
     int frameRate;
     int drawDistance;
+    int fog; // 1: soft
     int dither;
     PsyzColorDepth colour;
     PsyzGeometry geometry;
 } Settings;
 
 static const Settings sDefaults = {
-    "4:3", 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1, 1,
+    "4:3", 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1, 0, 1,
     PSYZ_COLOR_DEPTH_15, PSYZ_GEOMETRY_CONSOLE,
 };
 
@@ -71,6 +74,7 @@ static const struct {
      "60, display or " STR(PACING_FRAME_RATE_MIN) " to " STR(PACING_FRAME_RATE_MAX)},
     {"draw_distance", "--draw-distance", "LSD_DRAW_DISTANCE",
      STR(DRAW_DISTANCE_MIN) " to " STR(DRAW_DISTANCE_MAX)},
+    {"fog", "--fog", "LSD_FOG", "console or soft"},
     {"dither", "--dither", "LSD_DITHER", "on or off"},
     {"colour", "--colour", "LSD_COLOUR", "console or full"},
     {"geometry", "--geometry", "LSD_GEOMETRY", "console, precise or perspective"},
@@ -89,10 +93,11 @@ static const struct {
 
 static const char sDefaultFile[] =
     "# LSD: Dream Emulator settings. The command line (--aspect, --resolution,\n"
-    "# --scale, --pace, --smooth, --frame-rate, --draw-distance, --dither,\n"
-    "# --colour, --geometry) and the environment (LSD_ASPECT, LSD_RESOLUTION,\n"
-    "# LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE,\n"
-    "# LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY) win over this file.\n"
+    "# --scale, --pace, --smooth, --frame-rate, --draw-distance, --fog,\n"
+    "# --dither, --colour, --geometry) and the environment (LSD_ASPECT,\n"
+    "# LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE,\n"
+    "# LSD_DRAW_DISTANCE, LSD_FOG, LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY) win\n"
+    "# over this file.\n"
     "# Delete it to get the defaults back.\n"
     "\n"
     "# The dream's width:height. 4:3 is the console's picture; a wider one,\n"
@@ -126,6 +131,11 @@ static const char sDefaultFile[] =
     "# N times further away, never past the clearest a stage has. 1 is the\n"
     "# console's.\n"
     "draw_distance = 1\n"
+    "\n"
+    "# console: the PS1's fog, so distant things pop into view at the edges of\n"
+    "# what the dream draws. soft: those edges kept in the fog, and what comes\n"
+    "# into view there faded in from it.\n"
+    "fog = console\n"
     "\n"
     "# on: the console's 4x4 dither pattern over shading, which at a higher\n"
     "# resolution shows as grain. off: none, and the colour shows in bands.\n"
@@ -250,6 +260,17 @@ static int ParseAspect(const char* s, char* out, size_t size) {
     return 0;
 }
 
+static int ParseFog(const char* s, int* out) {
+    if (SDL_strcasecmp(s, "console") == 0) {
+        *out = 0;
+    } else if (SDL_strcasecmp(s, "soft") == 0) {
+        *out = 1;
+    } else {
+        return -1;
+    }
+    return 0;
+}
+
 // Parses one setting into set. Returns 0, or -1 if malformed.
 static int Parse(SettingId id, const char* s, Settings* set) {
     switch (id) {
@@ -267,6 +288,8 @@ static int Parse(SettingId id, const char* s, Settings* set) {
         return ParseFrameRate(s, &set->frameRate);
     case SETTING_DRAW_DISTANCE:
         return ParseDrawDistance(s, &set->drawDistance);
+    case SETTING_FOG:
+        return ParseFog(s, &set->fog);
     case SETTING_DITHER:
         return ParseOnOff(s, &set->dither);
     case SETTING_COLOUR:
@@ -311,6 +334,9 @@ static void Format(SettingId id, const Settings* set, char* out, size_t size) {
         break;
     case SETTING_DRAW_DISTANCE:
         SDL_snprintf(out, size, "%d", set->drawDistance);
+        break;
+    case SETTING_FOG:
+        SDL_strlcpy(out, set->fog ? "soft" : "console", size);
         break;
     case SETTING_DITHER:
         SDL_strlcpy(out, set->dither ? "on" : "off", size);
@@ -383,6 +409,9 @@ static void Apply(SettingId id) {
     case SETTING_DRAW_DISTANCE:
         DrawDistance_Set(sSet.drawDistance);
         break;
+    case SETTING_FOG:
+        SoftFog_Set(sSet.fog);
+        break;
     case SETTING_DITHER:
         Psyz_VideoSetDitheringMode(sSet.dither ? PSYZ_DITHER_AUTO : PSYZ_DITHER_OFF);
         break;
@@ -449,9 +478,10 @@ int SetUpSettings(const char* savesDir, const SettingArgs* args,
     Widescreen_Init(ratio);
     Pacing_Init(sSet.pace, sSet.smooth, sSet.frameRate);
     DrawDistance_Init(sSet.drawDistance);
+    SoftFog_Init(sSet.fog);
     for (int id = SETTING_RESOLUTION; id < SETTING_COUNT; id++) {
         if (id != SETTING_PACE && id != SETTING_SMOOTH && id != SETTING_FRAME_RATE &&
-            id != SETTING_DRAW_DISTANCE) {
+            id != SETTING_DRAW_DISTANCE && id != SETTING_FOG) {
             Apply(id);
         }
     }

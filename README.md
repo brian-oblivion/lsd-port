@@ -165,6 +165,15 @@ The command line and the environment win over it (the table under
   ones stay as they are. Far out the ground then ends at a straight edge
   against the sky, as it does on those stages on the console: the game
   draws only so many squares of ground ahead. 1 is the console's.
+- `fog = console` (`--fog`, `LSD_FOG`): `soft` keeps the edges of what the
+  dream draws in the fog. The game draws the ground and buildings only in
+  a block of squares ahead of you, and as you turn or walk it adds rows at
+  the block's edges; on clear days they pop into view, half fogged or not
+  at all, and more of them at 16:9. With `soft`, the squares near those
+  edges are fogged over (fully at the edge, clear four squares in), and a
+  square that comes into view fades in from the fog over about half a
+  second. Nothing near you changes, and nothing changes in the game.
+  `console` is the console's fog.
 - `dither = on` (`--dither`, `LSD_DITHER`): the console's 4x4 dither
   pattern, over the lit and shaded 3D and over the menus and movies too.
   Scaled up with `resolution`, it shows as a fine grain; `off` drops it,
@@ -309,6 +318,7 @@ Options, all optional:
 | `--smooth on\|off` | `LSD_SMOOTH` | frames drawn between the dream's steps, `on` (default) or `off` ("Pace") |
 | `--frame-rate N\|display` | `LSD_FRAME_RATE` | with smooth on, the dream's frames a second: `60` (default), `display` or 30 to 360 ("Pace") |
 | `--draw-distance N` | `LSD_DRAW_DISTANCE` | the dream's fog N times further away, 1 (default) to 4 ("Picture") |
+| `--fog console\|soft` | `LSD_FOG` | `soft`: the edges of what the dream draws kept in the fog, no pop-in; `console` (default) ("Picture") |
 | `--dither on\|off` | `LSD_DITHER` | the console's dither pattern, `on` (default) or `off` ("Picture") |
 | `--colour console\|full` | `LSD_COLOUR` | 15-bit colour (`console`, default) or 24-bit (`full`) ("Picture") |
 | `--geometry MODE` | `LSD_GEOMETRY` | `console` (default), `precise` or `perspective` ("Picture") |

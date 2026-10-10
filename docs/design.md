@@ -894,3 +894,107 @@ the setting is set nowhere else, appends otherwise, and leaves every other
 line as it is; it writes a `.new` file and renames it over the old one. A
 setting given on the command line or in the environment is shown greyed
 with its option, can't be changed, and is never written.
+
+## Soft fog (task 24, 2026-10-10)
+
+`fog = soft` (README, "Picture"; `--fog`, `LSD_FOG`; default `console`):
+the edges of what the dream's map draws kept in the fog, and what it
+starts to draw faded in from it. `src/soft_fog.c`, through a depth-cue
+hook in psyz's GTE (`Psyz_GteSetDepthCueHook`).
+
+### What popped
+
+The StageMap draws a window of cells ahead of the player ("Draw distance",
+"Widescreen edges") and hides the rest (GsDOFF). Turning moves the
+window sideways a cell at a time, and walking moves its far edge, so rows
+of cells switch on, and the game's fog, which goes by depth alone, is thin
+where they do: a cell 20 cells ahead is under half fogged on the clearest
+stages, and one at the side of a 16:9 view not at all. A trace of every
+cell with something in it that switched on inside the view (scratch,
+turning on the spot at Kyoto, day 30, a level-0 day whose fog colour is
+its sky's, for 349 ticks; the game's fog estimated from the distance):
+
+| | cells popped in view | nearest | game's fog there (median, most) |
+|---|---|---|---|
+| 4:3 | 2094 | 6.3 cells | 43 %, 63 % |
+| 16:9 | 5213 | 11.7 cells | 65 %, 87 % |
+
+With `soft`, the same turns: no cell came into view less than 7/8
+fogged (the last fog palette row); most come in fully fogged, that is
+not drawn, and fade in.
+
+The map's window is the only thing in a dream shown or hidden by
+distance: the game's other display switches (`setDisplay`) are its own
+events, such as an entity blinking or a fade box. What hangs under a grid
+cell goes with it (DrawNode skips a hidden cell's children), and takes the
+cell's fog by its position; a plain sprite there doesn't take fog at all,
+on the console either, so it still appears at once.
+
+The stages whose chunks are stacked in a column (the grid's `isVertical`)
+show whole chunks, the player's and the next by where the player stands
+(`SetFootprintFromQuery`), so cells switch on right beside the player
+there by design; they are left alone.
+
+### The fog
+
+Each tick, after the StageMap's refresh (wrapped after widescreen.c's, so
+its extra cells count), every cell of the loaded chunks is looked at:
+shown or not, and whether it has anything to draw. A hidden cell with
+something in it, ahead of the player and in the view cone (with 1.5 cells
+of margin), is an edge; a chamfer distance transform gives every cell its
+distance to the nearest edge, and its fog is 1 next to one, falling
+smoothly to 0 four cells away. A cell switched on starts at 1. Within
+three cells of the player there is no fog, and it comes in fully by six.
+Each frame (the Viewport's update, wrapped) every cell's fog eases toward
+its target, a full step in 0.6 s.
+
+The hook gets a vertex's view position and the game's depth cue for it
+from RTPS and RTPT (the vertex whose IR0 they leave: RTPT's last). It
+takes the position back to the world with GsWSMATRIX's transpose, blends
+the fog of the four nearest cell centres, and returns
+dp + (ONE - dp) · fog. The game does the rest as it does with its own
+fog: textured faces take the fog palette rows, the GTE cues colours
+toward the fog colour, and a face at ONE is culled. So a cell at the edge
+is drawn in the fog colour, and one switched on there is not drawn at all
+until it fades in.
+
+What the game's own fog was is kept: clear days stay clear up close, and
+`draw_distance` still moves it. The other way, a fog curve that ends
+where the map always reaches, would have to end at 8 to 12 cells (the
+nearest the window's side comes into view; "Widescreen edges"), fogging
+whole clear stages.
+
+The fog colour is not always the sky's (`farColor` against `clearColor`;
+a third of the fallback styles differ), and the fog palettes stop at 7/8
+of the way: at full fog a face is culled. So on those days the edge is a
+band of fog colour against the sky, as on the console's level-3 days, and
+a cell fading in shows first as a dim silhouette, not a pop.
+
+### Checked
+
+- Lockstep (x86_64 Debug, pace 14, smooth on, seed 4321): task 14's
+  eight spots and days 22 and 340, walking for 700 ticks with a STATE
+  line every tick, at 4:3 (`main`, `console` and `soft`) and the eight
+  spots at 16:9 (`console` and `soft`): every STATE and SAVEBLK line the
+  same (643 or 644 lines, 411 on day 340). `main` against `console`: the
+  freeze screenshots byte-identical as well. Again on the final build for
+  two spots, and with `soft` switched on mid-dream (`SoftFog_Set`, as the
+  menu calls it, at tick 200): the same.
+- Frame times (RelWithDebInfo x86_64, psyz's draw time at 59.94 Hz, Kyoto
+  day 30, 12 s standing and 12 s turning, two runs each), medians in µs:
+
+  | | standing | turning |
+  |---|---|---|
+  | 4:3 console | 394, 378 | 421, 426 |
+  | 4:3 soft | 449, 430 | 477, 464 |
+  | 16:9 console | 433, 444 | 456, 460 |
+  | 16:9 soft | 455, 449 | 516, 510 |
+
+  `soft` costs 20 to 60 µs a frame of 16 683 (the hook at every RTPT,
+  the per-tick distance transform, the per-frame easing).
+- Two-colour day (Kyoto day 4: fog 130, 155, 194 against a sky of 50,
+  119, 145) and Happy Town day 8 at 16:9: the edges go into a haze of the
+  fog colour; nothing else changes.
+- psyz's host tests (440) pass with the hook; builds: x86_64 Debug and
+  RelWithDebInfo, i686 RelWithDebInfo, Windows x86_64 (MinGW), with only
+  the two old "function called through a non-compatible type" warnings.

@@ -203,6 +203,16 @@ answered in that list; the operator approved it on 2026-10-02.
     map chunks (StageMap's tracking rewritten), not done. Lockstep shows
     identical state at 1 and 4. `src/draw_distance.c`, `docs/design.md`
     ("Draw distance").
+  - `soft-fog` (task 24): `fog = soft` (`--fog`, `LSD_FOG`; default
+    `console`) keeps the edges of the StageMap's window in the fog where
+    they are in view, and fades cells it switches on in from the fog over
+    0.6 s, so distant things no longer pop in as the player turns or
+    walks (2094 cells popped in view on a 4:3 turn at Kyoto, 5213 at
+    16:9; none with it on). Per cell, through a depth-cue hook in psyz's
+    GTE (`Psyz_GteSetDepthCueHook`); the game's own fog, and the stages
+    whose chunks are stacked in a column, are left as they are. Lockstep
+    shows identical state. `src/soft_fog.c`, `docs/design.md` ("Soft
+    fog").
   - `settings-menu` (task 21): F1, or a pad's Guide button or both
     sticks, or SETTINGS in the title menu, opens a Dear ImGui menu over
     the game (psyz's overlay hooks, on both renderers), in the title
