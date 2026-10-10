@@ -270,11 +270,21 @@ picture a pass builds is one tick behind the logic of that pass, and
 
 psyz's `VSync(n)` presents, waits n blanks, reads the pads and raises n
 vertical blanks, which run the `VSyncCallback` functions. In a dream that
-is the CD driver's service (`ServiceCdDriver`); the music is not among
-them. `SsSetTickMode(SS_TICK60)` puts libsnd's sequencer on root counter
-2 (`_SsSeqCalledTbyT_1per2`, every other interrupt at 120 Hz), which
-psyz's kernel times on its own thread (`psyz_irq`) by the host clock, so
-the music keeps its tempo whatever the game's loop does.
+is the CD driver's service (`ServiceCdDriver`). The music is not among
+them: the game asks libsnd for `SS_TICK60`, which on an NTSC machine runs
+the sequencer on the vertical-blank interrupt, and since psyz's kernel
+rewrite (the upstream sync of 2026-10-10) that interrupt comes only when
+the game's loop raises a blank. The paced dream raises three a tick, 42 a
+second at pace 14, and the music played 1.43 times too slow (day 1's SEQ
+loop 11.47 s instead of 8.01; DuckStation's 8.02). So at the first dream
+`src/pacing.c` restarts libsnd's clock with `SsSetTickMode(60)`, a rate
+with the same tempo constant (`VBLANK_MINUS` 60), which puts the sequencer
+on root counter 2 (`_SsSeqCalledTbyT_1per2`, every other interrupt at 120
+Hz); psyz's kernel times that on its own thread (`psyz_irq`) by the host
+clock, so the music keeps its tempo whatever the game's loop does. Day 1
+against DuckStation: pitch ratio 1.0000, level -30.23 dB against -30.25,
+tempo 0.25 % fast (psyz's 60 Hz against the console's 59.83, as in task
+05).
 
 ### Pace
 
@@ -935,6 +945,25 @@ show whole chunks, the player's and the next by where the player stands
 (`SetFootprintFromQuery`), so cells switch on right beside the player
 there by design; they are left alone.
 
+### The view in a circle
+
+With the fade, walking up to things looked right, but turning did not: the
+game's window moves sideways a cell at a time as the view turns (and to the
+other axis at 45 degrees), so cells kept switching on at the leading side,
+each dissolving in, and the fogged edge moved with the window, as if the
+ground were catching up with the view. So with `soft` on, after each refresh,
+every loaded cell with something in it within 21 cells of the player is
+shown when it is in the view cone widened by 26 degrees a side (about four
+ticks of turning) or within 3 cells, and every cell further than 21 is
+hidden, whatever the game's window says. A turn then brings in cells that
+were drawn already, and the edge is a circle that does not move as the view
+turns; the fog's edges are hidden cells in view (beyond the circle) and,
+inside it, cells of no loaded chunk, where the ring of chunks ends. Drawing
+only, as widescreen.c's extra cells (GsDOFF; the cells shown are hidden
+again before the next refresh). Cells come in now only as the player walks
+toward them, or where the ring of loaded chunks ends near the player
+(task 23's second ring would push that out).
+
 ### The fog
 
 Each tick, after the StageMap's refresh (wrapped after widescreen.c's, so
@@ -946,17 +975,29 @@ distance to the nearest edge, and its fog is 1 next to one, falling
 smoothly to 0 four cells away. A cell switched on starts at 1. Within
 three cells of the player there is no fog, and it comes in fully by six.
 Each frame (the Viewport's update, wrapped) every cell's fog eases toward
-its target, a full step in 0.6 s.
+its target, a full step in 0.8 s.
 
 The hook gets a vertex's view position and the game's depth cue for it
 from RTPS and RTPT (the vertex whose IR0 they leave: RTPT's last). It
 takes the position back to the world with GsWSMATRIX's transpose, blends
-the fog of the four nearest cell centres, and returns
-dp + (ONE - dp) · fog. The game does the rest as it does with its own
-fog: textured faces take the fog palette rows, the GTE cues colours
-toward the fog colour, and a face at ONE is culled. So a cell at the edge
-is drawn in the fog colour, and one switched on there is not drawn at all
-until it fades in.
+the fog of the four nearest cell centres, and returns the game's depth cue
+with that fog laid over it, and a fade:
+
+- over the first 0.7 of a cell's fog the depth cue goes smoothly to just
+  below ONE (dp + (ONE - dp) · fog, never culled by it); the game does the
+  rest as with its own fog: textured faces take the fog palette rows, the
+  GTE cues colours toward the fog colour;
+- over the last 0.6 the fade goes from 0 to ONE: psyz draws the polygons
+  from those vertices that much transparent (`Psyz_GteSetDepthCueHook`'s
+  fade, carried to the GPU on precise geometry's per-vertex table and
+  folded into the vertex's alpha byte; the shaders scale their
+  premultiplied output by it).
+
+So a cell at the edge is not drawn at all, and one coming into view
+dissolves in, in the fog colour, then clears. The first version (fog only,
+culled at ONE) went from nothing to a dark, 7/8-fogged shape in one frame;
+the fade is what takes that step away. Without it (psyz built without
+`PSYZ_PRECISE_GEOMETRY`) the fog goes to ONE as before.
 
 What the game's own fog was is kept: clear days stay clear up close, and
 `draw_distance` still moves it. The other way, a fog curve that ends
@@ -965,10 +1006,10 @@ nearest the window's side comes into view; "Widescreen edges"), fogging
 whole clear stages.
 
 The fog colour is not always the sky's (`farColor` against `clearColor`;
-a third of the fallback styles differ), and the fog palettes stop at 7/8
-of the way: at full fog a face is culled. So on those days the edge is a
-band of fog colour against the sky, as on the console's level-3 days, and
-a cell fading in shows first as a dim silhouette, not a pop.
+a third of the fallback styles differ); with the fade, the edge dissolves
+into whatever is behind it either way. While a cell is part transparent its
+own back faces show through it for a moment (the PS1 draws without a depth
+buffer).
 
 ### Checked
 
@@ -998,3 +1039,17 @@ a cell fading in shows first as a dim silhouette, not a pop.
 - psyz's host tests (440) pass with the hook; builds: x86_64 Debug and
   RelWithDebInfo, i686 RelWithDebInfo, Windows x86_64 (MinGW), with only
   the two old "function called through a non-compatible type" warnings.
+- The fade (psyz `b431599`), Kyoto day 30 at 4:3, turning: a building and
+  the torii come in as fog-tinted ghosts over three or four ticks instead
+  of appearing. Lockstep with it (and the music clock above), ky47 and day
+  22, `console` and `soft`: the same STATE lines as before. Frame time at
+  16:9, turning, measured with the machine loaded by other work (load 22):
+  774 µs `console`, 1027 `soft`, so the fade (psyz carrying the per-vertex
+  table) costs about 0.2 ms a frame. GL starts with it on Xvfb; psyz's
+  host tests pass.
+- The view in a circle: Kyoto day 30 at 16:9, turning: after the first
+  ticks nothing dissolves while turning, frame for frame like `console`
+  but for the fog at the far edge and where the chunks end. Lockstep, ky47
+  and day 22 at 4:3 and 16:9 with `soft`: the same STATE lines as
+  `console`. Frame time (16:9, machine at load 4): 321 µs standing and
+  355 turning with `console`, 474 and 509 with `soft`.

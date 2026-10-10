@@ -171,7 +171,7 @@ The command line and the environment win over it (the table under
   the block's edges; on clear days they pop into view, half fogged or not
   at all, and more of them at 16:9. With `soft`, the squares near those
   edges are fogged over (fully at the edge, clear four squares in), and a
-  square that comes into view fades in from the fog over about half a
+  square that comes into view dissolves in from the fog over most of a
   second. Nothing near you changes, and nothing changes in the game.
   `console` is the console's fog.
 - `dither = on` (`--dither`, `LSD_DITHER`): the console's 4x4 dither

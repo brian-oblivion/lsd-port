@@ -50,6 +50,7 @@
 #include "pacing.h"
 
 #include <libetc.h>
+#include <libsnd.h>
 #include <psyz/system.h>
 #include <psyz/video.h>
 #include <SDL3/SDL_timer.h>
@@ -541,7 +542,28 @@ static void PacedRunLoop(DrawSystem* self) {
     }
 }
 
+// The music's clock. The game asks libsnd for SS_TICK60, which on an NTSC
+// machine runs the sequencer on the vertical-blank interrupt; psyz raises
+// that when the game's loop does (VSync, Psyz_VSyncRunCallbacks), and the
+// paced dream raises three a tick: 42 a second at pace 14, and the music
+// played that much slower. A rate of 60 instead (SsSetTickMode(60), the
+// same tempo constant) runs it on root counter 2 at 120 Hz, every second
+// interrupt (_SsSeqCalledTbyT_1per2), which psyz times by the host clock on
+// its interrupt thread: 60 ticks a second whatever the pace. Switched once,
+// at the first dream; libsnd was started long before (VabStreamObj's first
+// bank) and nothing plays yet.
+static void MusicOnRootCounter(void) {
+    static int done;
+    if (!done) {
+        done = 1;
+        SsEnd();
+        SsSetTickMode(60);
+        SsStart();
+    }
+}
+
 static void PacedDayTaskOnInit(DayTask* self, s32 a, s32 b, s32 c) {
+    MusicOnRootCounter();
     sDayTaskOnInit(self, a, b, c);
     sViewport = (Viewport*)self->viewport;
     sDreamSys = (SceneNode*)self->dreamSys;
