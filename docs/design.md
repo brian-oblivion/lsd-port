@@ -268,13 +268,13 @@ draws the world as the last tick left it) and then runs the dream's logic
 picture a pass builds is one tick behind the logic of that pass, and
 `VSync(3)` gives one tick per three blanks: 19.98 a second at 59.94 Hz.
 
-psyz's `VSync(n)` presents, waits n blanks, reads the pads and runs the
-`VSyncCallback` functions n times. In a dream that is the CD driver's
-service (`ServiceCdDriver`); the music is not among them. psyz runs
-libsnd's sequencer (`SsSeqCalledTbyT`) from the audio thread, through its
-root-counter emulation (`audio_callback` → `Psyz_SpuPullSamples` →
-`Psyz_RcntAdd` → `_SsTrapIntrVSync`), so the music keeps its tempo
-whatever the game's loop does.
+psyz's `VSync(n)` presents, waits n blanks, reads the pads and raises n
+vertical blanks, which run the `VSyncCallback` functions. In a dream that
+is the CD driver's service (`ServiceCdDriver`); the music is not among
+them. `SsSetTickMode(SS_TICK60)` puts libsnd's sequencer on root counter
+2 (`_SsSeqCalledTbyT_1per2`, every other interrupt at 120 Hz), which
+psyz's kernel times on its own thread (`psyz_irq`) by the host clock, so
+the music keeps its tempo whatever the game's loop does.
 
 ### Pace
 
