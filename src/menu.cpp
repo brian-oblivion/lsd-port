@@ -459,9 +459,11 @@ void PictureSection() {
         {"precise", "precise", "between pixels"},
         {"perspective", "perspective", "and true textures"},
     };
-    char resolution[32];
-    int n = atoi(Settings_Value(SETTING_RESOLUTION));
-    SDL_snprintf(resolution, sizeof(resolution), "%%dx %dx%d", 320 * n, 240 * n);
+    static const Choice resolutions[] = {
+        {"1", "1x  320x240", "the PS1's"}, {"2", "2x  640x480"},   {"3", "3x  960x720"},
+        {"4", "4x 1280x960"},              {"5", "5x 1600x1200"},  {"6", "6x 1920x1440"},
+        {"7", "7x 2240x1680"},             {"8", "8x 2560x1920"},
+    };
 
     Heading("PICTURE");
     if (sOpening) {
@@ -472,7 +474,7 @@ void PictureSection() {
         sOpening = false;
     }
     Combo(SETTING_ASPECT, "ASPECT", aspects, SDL_arraysize(aspects), nullptr);
-    Slider(SETTING_RESOLUTION, "RESOLUTION", 1, 8, resolution, "of the 3D");
+    Combo(SETTING_RESOLUTION, "RESOLUTION", resolutions, SDL_arraysize(resolutions), "of the 3D");
     Combo(SETTING_SCALE, "SCALE", scales, SDL_arraysize(scales));
     Check(SETTING_DITHER, "DITHER", "the PS1's 4x4");
     Combo(SETTING_COLOUR, "COLOUR", colours, SDL_arraysize(colours));
@@ -486,6 +488,12 @@ void DreamSection() {
         {"120", "120"}, {"144", "144"}, {"165", "165"}, {"180", "180"}, {"240", "240"},
         {"360", "360"},
     };
+    static const Choice distances[] = {
+        {"1", "1x", "the PS1's fog"},
+        {"2", "2x", "the fog twice as far"},
+        {"3", "3x", "the fog 3x as far"},
+        {"4", "4x", "the fog 4x as far"},
+    };
     bool smooth = SDL_strcmp(Settings_Value(SETTING_SMOOTH), "on") == 0;
 
     Heading("DREAM");
@@ -493,7 +501,7 @@ void DreamSection() {
     Check(SETTING_SMOOTH, "SMOOTH", "frames between ticks");
     Combo(SETTING_FRAME_RATE, "FRAME RATE", rates, SDL_arraysize(rates),
           smooth ? nullptr : "with smooth on");
-    Slider(SETTING_DRAW_DISTANCE, "DRAW DISTANCE", 1, 4, "%dx", "the fog that far");
+    Combo(SETTING_DRAW_DISTANCE, "DRAW DISTANCE", distances, SDL_arraysize(distances));
 }
 
 void KeysText(int b, char* out, size_t size) {

@@ -175,6 +175,9 @@ rest.
   pixels by more than 16 levels); the freezes differ in the same
   rectangles as `main` differs from itself (frame-time animation while the
   dream clock is frozen).
+- Resolution (1x to 8x, with the picture's size) and draw distance (1x to
+  4x) are lists rather than sliders, as there are only a few of each; pace
+  keeps its slider (21 values).
 - Builds: x86_64 Debug (Vulkan, OpenGL), i686, Windows x86_64, the
   no-precise-geometry build: only the two old warnings; the new files are
   clean under `-Wall -Wextra`.
