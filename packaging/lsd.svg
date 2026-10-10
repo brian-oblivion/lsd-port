@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The port's icon: a dusk over a flat, low-poly field. Drawn for the port;
+     nothing in it is from the game. MIT, as the port. lsd-256.png and
+     lsd-1024.png are renders of it: rsvg-convert -w N -h N lsd.svg -o lsd-N.png -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="sky" gradientUnits="userSpaceOnUse" x1="0" y1="64" x2="0" y2="760">
+      <stop offset="0" stop-color="#1b1446"/>
+      <stop offset="0.55" stop-color="#7a2f8f"/>
+      <stop offset="1" stop-color="#f08a7a"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff2a8"/>
+      <stop offset="1" stop-color="#ff9a5c"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect x="64" y="64" width="896" height="896" rx="200"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#sky)"/>
+    <circle cx="512" cy="600" r="230" fill="url(#sun)"/>
+    <g fill="url(#sky)">
+      <rect x="0" y="560" width="1024" height="14"/>
+      <rect x="0" y="608" width="1024" height="20"/>
+      <rect x="0" y="660" width="1024" height="26"/>
+      <rect x="0" y="716" width="1024" height="32"/>
+    </g>
+    <polygon points="0,760 1024,760 1024,1024 0,1024" fill="#173b3a"/>
+    <g stroke="#4fd1b5" stroke-width="6" fill="none" opacity="0.85">
+      <line x1="0" y1="760" x2="1024" y2="760"/>
+      <line x1="0" y1="800" x2="1024" y2="800"/>
+      <line x1="0" y1="856" x2="1024" y2="856"/>
+      <line x1="0" y1="936" x2="1024" y2="936"/>
+      <line x1="512" y1="760" x2="512" y2="1024"/>
+      <line x1="432" y1="760" x2="272" y2="1024"/>
+      <line x1="592" y1="760" x2="752" y2="1024"/>
+      <line x1="352" y1="760" x2="32" y2="1024"/>
+      <line x1="672" y1="760" x2="992" y2="1024"/>
+      <line x1="272" y1="760" x2="-208" y2="1024"/>
+      <line x1="752" y1="760" x2="1232" y2="1024"/>
+    </g>
+    <polygon points="160,760 250,640 330,760" fill="#0f2726"/>
+    <polygon points="250,640 300,700 330,760" fill="#1d4846"/>
+    <polygon points="700,760 800,600 900,760" fill="#0f2726"/>
+    <polygon points="800,600 850,690 900,760" fill="#1d4846"/>
+  </g>
+</svg>

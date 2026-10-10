@@ -38,6 +38,14 @@ lsd/
     └── LSD - Dream Emulator (Japan).bin
 ```
 
+For the AppImage, `disc/` goes beside the `.AppImage` file; for the macOS
+app, beside `LSD Dream Emulator.app`. In every case it can also go in the
+per-user folder where the saves are ("Saves", below), which suits the
+macOS app (once moved to Applications) and the Steam Deck: for example
+`~/.local/share/lsd-dream-emulator/disc/` on Linux. `lsd` looks in that
+order: the folder it is started from, beside itself, beside the AppImage
+or the app, the per-user folder.
+
 `lsd` uses the one `.cue` it finds there. To keep the image elsewhere,
 pass `--disc path/to/game.cue` or set `LSD_DISC`.
 
@@ -53,9 +61,14 @@ anywhere, so the image cannot be committed by accident.
 The memory cards are two folders, `bu00/` (slot 1) and `bu10/` (slot 2),
 with one file per save, in your per-user folder:
 
-- Linux: `~/.local/share/lsd-dream-emulator/`
+- Linux, the AppImage included: `~/.local/share/lsd-dream-emulator/`
   (`$XDG_DATA_HOME/lsd-dream-emulator/` when that is set)
 - Windows: `%APPDATA%\lsd-dream-emulator\`
+- macOS: `~/Library/Application Support/lsd-dream-emulator/`
+
+`settings.ini` and `controls.ini` are kept there too. Nothing is written
+beside the program, so a read-only AppImage or an app in Applications
+works as the archives do.
 
 `--saves DIR` or `LSD_SAVES=DIR` puts them in `DIR` instead (made if it
 does not exist); `--saves` wins over `LSD_SAVES`.
@@ -231,17 +244,25 @@ to the intro while it is open.
 
 ## Running a release
 
-A release has one archive per platform: the program, these instructions
+A release has one package per platform: the program, these instructions
 as `README.txt`, the licences (`licences/`, with `SOURCES.txt` saying what
-is linked in and where its source is), and nothing of the game.
+is in the package and where its source is), and nothing of the game.
 
 - **Windows** (64-bit, Windows 10 and 11): unzip, put
   `disc/` beside `lsd.exe` and start `lsd.exe`. A console window with the
   log opens beside the game; when the game cannot start, a message box
   says why.
-- **Linux** (64-bit, x86_64): unpack, put `disc/` beside `lsd` and run
-  `./lsd`. It needs what a desktop system usually has:
-  - always: glibc, the Vulkan loader and your GPU's Vulkan driver
+- **Linux** (64-bit, x86_64): the AppImage is one file. Make it
+  executable (`chmod +x lsd-*.AppImage`, or the file's properties), put
+  `disc/` beside it and run it. It needs no FUSE library installed
+  (AppImage's runtime brings its own; without FUSE at all, set
+  `APPIMAGE_EXTRACT_AND_RUN=1`). Its `README.txt` and licences are inside
+  it: `./lsd-*.AppImage --appimage-extract` unpacks them into
+  `squashfs-root/usr/share/doc/lsd/`. The `.tar.gz` is the same program
+  unpacked: put `disc/` beside `lsd` and run `./lsd`. Either needs what a
+  desktop system usually has:
+  - always: glibc 2.38 or newer (Ubuntu 24.04, Debian 13, Fedora 39 and
+    later), the Vulkan loader and your GPU's Vulkan driver
     (Debian/Ubuntu `libvulkan1 mesa-vulkan-drivers`; Arch
     `vulkan-icd-loader` and `vulkan-radeon`, `vulkan-intel` or
     `nvidia-utils`);
@@ -249,6 +270,31 @@ is linked in and where its source is), and nothing of the game.
     (`libwayland-client0 libxkbcommon0`; `wayland libxkbcommon`);
   - sound: ALSA (`libasound2`; `alsa-lib`) or PulseAudio (`libpulse0`;
     `libpulse`).
+
+  Started from a desktop rather than a terminal, a message box says why
+  the game cannot start, when it can't.
+- **macOS** (Apple Silicon, macOS 11 or later): unzip, and move
+  `LSD Dream Emulator.app` to Applications if you like. Put `disc/` in
+  `~/Library/Application Support/lsd-dream-emulator/` (Finder: Go, Go to
+  Folder; make the folder if it isn't there yet), or beside the app. The
+  app is not signed with an Apple Developer ID, so macOS refuses it the
+  first time ("cannot be opened", or "Apple could not verify..."): open it
+  once, then in System Settings, Privacy & Security, press "Open Anyway"
+  beside its name and confirm. (Before macOS 15, Control-click the app,
+  Open, and Open again.) In a terminal,
+  `xattr -dr com.apple.quarantine "LSD Dream Emulator.app"` does the same.
+  Until then, macOS also runs it from a hidden copy, so a `disc/` beside
+  it is not found; the per-user folder always is.
+- **Steam Deck**: the Linux AppImage. In Desktop Mode, put the AppImage
+  where you like, make it executable, put `disc/` beside it (or in
+  `~/.local/share/lsd-dream-emulator/disc/`), then in Steam "Add a
+  Non-Steam Game" and pick the AppImage (choose "All files" to see it).
+  In Game Mode it then starts fullscreen with the Deck's controls as a
+  pad. `aspect = 16:10` in the settings menu fills the Deck's screen
+  (1280x800); `frame_rate = display` draws the dream at the screen's 60
+  Hz (90 on the OLED model when it is set to 90). Steam keeps the Guide
+  (Steam) button, so open the settings menu with both sticks pressed in
+  together.
 
 Options, all optional:
 
@@ -376,12 +422,15 @@ cmake --build build-win
 | `src/` | the port's own code |
 | `cmake/` | toolchain files: Linux i686 and Windows i686 (the 32-bit builds) |
 | `disc/` | your disc image (not committed) |
-| `tools/` | measurement and test-driving scripts; `package.sh` makes a release archive |
+| `tools/` | measurement and test-driving scripts; `package.sh` makes a release package |
+| `packaging/` | the icon, the `.desktop` file, the macOS `Info.plist`, and the AppImage runtime's licences |
 | `docs/` | the plan and design notes |
 
 ## Licence
 
 MIT (see `LICENSE`). lsddecomp is CC0; psyz's parts carry their own licences
 (MIT, MPL 2.0, and unlicensed SDK headers/decompiled code), and SDL 3 is
-zlib. A release archive lists what its binary contains, and under which
-licence, in `licences/SOURCES.txt` (`tools/package.sh`).
+zlib. A release package lists what it contains, and under which licence,
+in `licences/SOURCES.txt` (`tools/package.sh`). The icon
+(`packaging/lsd.svg`) was drawn for the port and is MIT as well; nothing in
+it is from the game.

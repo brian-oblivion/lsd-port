@@ -155,4 +155,9 @@ endif()
 if(MINGW)
     target_link_options(lsd PRIVATE -static)
 endif()
+# Linux with GCC: libstdc++ (the settings menu's C++) linked in too, so a
+# release needs only glibc and libgcc_s of the system's own (release.yml checks).
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(lsd PRIVATE -static-libstdc++)
+endif()
 psyz_title(lsd "LSD: Dream Emulator")
