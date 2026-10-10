@@ -261,7 +261,8 @@ is in the package and where its source is), and nothing of the game.
   `squashfs-root/usr/share/doc/lsd/`. The `.tar.gz` is the same program
   unpacked: put `disc/` beside `lsd` and run `./lsd`. Either needs what a
   desktop system usually has:
-  - always: glibc, the Vulkan loader and your GPU's Vulkan driver
+  - always: glibc 2.38 or newer (Ubuntu 24.04, Debian 13, Fedora 39 and
+    later), the Vulkan loader and your GPU's Vulkan driver
     (Debian/Ubuntu `libvulkan1 mesa-vulkan-drivers`; Arch
     `vulkan-icd-loader` and `vulkan-radeon`, `vulkan-intel` or
     `nvidia-utils`);

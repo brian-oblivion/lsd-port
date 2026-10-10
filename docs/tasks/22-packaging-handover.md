@@ -99,14 +99,17 @@ existing players'. The Deck runs AppImages as non-Steam games fine.
 - Windows x86_64 (MinGW) still builds; the macOS branch of `main.c`
   syntax-checked with stub Apple headers. The `.tar.gz` unchanged.
 
-Not checked here: the macOS bundle (needs CI; there's no Mac here), and
-CI itself, which runs once the branch is pushed. Read the jobs and the
-annotations ("newest glibc symbol", "macOS minimum") through the public
-API afterwards.
+CI (`54c6096`, after the libstdc++ fix): build and release green on
+every job. The Linux AppImage's and the macOS app's no-disc smoke tests
+pass; the app's signature verifies, `Info.plist` lints, it links only
+system libraries, minimum macOS 11.0; the newest glibc symbol is
+GLIBC_2.38. Not checked anywhere: the app on a real Mac (none here), and
+the Deck (checklist below).
 
 ## Steam Deck checklist (for the operator)
 
-1. Desktop Mode: download the AppImage, Properties → "Is executable".
+1. Desktop Mode: `ldd --version` in Konsole says 2.38 or newer (the
+   AppImage needs it). Download the AppImage, Properties → "Is executable".
    Put `disc/` with the `.cue`/`.bin` beside it.
 2. Run it from Dolphin once: it should reach the title menu. (If it says
    there's no disc image, the box says where it looked.)
@@ -151,9 +154,10 @@ Needs an Apple Developer Program membership (99 USD/year).
 ## Questions for the operator
 
 - The `.tar.gz` for Linux is kept beside the AppImage: drop it?
-- The release build runs on ubuntu-24.04. If the "newest glibc symbol"
-  annotation says 2.34 or older, older distributions run it too and the
-  README could say so; building on ubuntu-22.04 would be the way to go
-  lower.
+- The release build runs on ubuntu-24.04 and needs glibc 2.38 (CI's
+  annotation; `__isoc23_*` from 24.04's headers under `_GNU_SOURCE`). The
+  README now says 2.38 or newer. Building on ubuntu-22.04 would bring it
+  down to 2.35 at most, for older distributions; check the Deck's first
+  (`ldd --version` in Desktop Mode, checklist step 1).
 - An x86_64 macOS build (Intel Macs) isn't made; a universal binary would
   need SDL and the game built for both (`CMAKE_OSX_ARCHITECTURES`).
