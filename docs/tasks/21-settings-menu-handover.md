@@ -140,6 +140,45 @@ menu"; the player's side in the README, "The settings menu".
   sdl3_gpu): 319 passed, 0 failed. `tools/package.sh` run on the Windows
   build: the new licence file and SOURCES lines are in.
 
+## Follow-up (2026-10-10): the game's look, and SETTINGS in the title menu
+
+Asked for by the operator after trying it: the menu to look like the rest
+of the game, and an entry in the title menu beside START, SAVE and the
+rest.
+
+- The look: the title menu's font, `CDI\ETC\FONTICON.TIM`, read from the
+  disc image when the menu is set up (`src/disc.c`, an ISO 9660 reader on
+  a file handle of its own, apart from psyz's libcd), drawn through an
+  `ImFontLoader` in whole multiples of its 8x8 pixels (16 pixels up to a
+  window 1199 high); the title menu's colours (blue backdrop, grey rows,
+  the row under the cursor yellow, pink headings), square corners, the
+  labels in capitals as the game's entries are. The font's glyphs are white
+  with a dark drop shadow; the shadow is left out. Without the font, Dear
+  ImGui's own.
+- SETTINGS: `src/title_settings.c` gives `sTitleMenuTarget` copies of its
+  tables one entry longer, and wraps the title menu's `confirmSlot`
+  (SETTINGS opens the menu) and `update` (no timing out to the intro while
+  the menu is open). The decomp is untouched. A pad button still held when
+  the menu opens (circle, from SETTINGS) is kept from Dear ImGui's
+  navigation until let go.
+- Seen (OpenGL on Xvfb): SETTINGS in the title menu in the game's font,
+  grey and yellow under the cursor like the rest; picking it with the
+  keyboard (down five times, circle via the debug server) or a scratch
+  virtual pad opens the menu, which reads correctly in the game's font;
+  the menu stays on its first setting after the pad's circle, the d-pad
+  moves, cross or Escape closes it, and the title menu is still there,
+  SETTINGS selected, after 15 s with the menu open. Screenshots in the
+  scratchpad: `t21/title/t3.png`, `t21/padtitle.png`, `t21/p3crop2.png`.
+- Lockstep (the defaults, x86_64 Debug, Vulkan, as above) with the new
+  entry against the run before it: STATE and SAVEBLK identical over the
+  whole day (3 622 lines). The title menu shot differs by the new row (151
+  pixels by more than 16 levels); the freezes differ in the same
+  rectangles as `main` differs from itself (frame-time animation while the
+  dream clock is frozen).
+- Builds: x86_64 Debug (Vulkan, OpenGL), i686, Windows x86_64, the
+  no-precise-geometry build: only the two old warnings; the new files are
+  clean under `-Wall -Wextra`.
+
 ## Open
 
 - Merging and pushing this branch: the operator's.

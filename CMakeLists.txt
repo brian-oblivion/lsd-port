@@ -48,10 +48,11 @@ set(LSD_DECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/decomp" CACHE PATH
     "lsddecomp source tree")
 file(GLOB_RECURSE LSD_GAME_SOURCES CONFIGURE_DEPENDS ${LSD_DECOMP_DIR}/src/*.c)
 list(FILTER LSD_GAME_SOURCES EXCLUDE REGEX "/src/psyq/")
-# src/widescreen.c, src/pacing.c and src/draw_distance.c wrap the game's
-# methods, so they build with the game's C.
+# src/widescreen.c, src/pacing.c, src/draw_distance.c and
+# src/title_settings.c wrap the game's methods, so they build with the
+# game's C.
 add_library(lsd_game OBJECT ${LSD_GAME_SOURCES} src/widescreen.c src/pacing.c
-    src/draw_distance.c)
+    src/draw_distance.c src/title_settings.c)
 target_include_directories(lsd_game PRIVATE ${LSD_DECOMP_DIR}/include)
 target_link_libraries(lsd_game PRIVATE psyz)
 # HOST_BUILD: lsddecomp's switch for any build that is not the PS1's.
@@ -87,7 +88,7 @@ target_compile_definitions(lsd_imgui PUBLIC IMGUI_DISABLE_WIN32_FUNCTIONS
     IMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS)
 target_link_libraries(lsd_imgui PUBLIC SDL3::SDL3 ${CMAKE_DL_LIBS})
 
-add_executable(lsd src/main.c src/controls.c src/ini.c src/settings.c src/menu.cpp)
+add_executable(lsd src/main.c src/controls.c src/disc.c src/ini.c src/settings.c src/menu.cpp)
 target_link_libraries(lsd PRIVATE lsd_game psyz lsd_imgui)
 if(PSYZ_RENDERER STREQUAL "sdl3_gpu")
     target_compile_definitions(lsd PRIVATE LSD_MENU_SDL3_GPU)

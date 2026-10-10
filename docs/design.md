@@ -790,9 +790,9 @@ the GTE's.
 
 ## Settings menu (task 21, 2026-10-09)
 
-F1, or a gamepad's Guide button or both sticks pressed in, opens a menu
-over the game (`src/menu.cpp`) with every setting of `settings.ini` and
-the keyboard's keys.
+F1, or a gamepad's Guide button or both sticks pressed in, or SETTINGS in
+the title menu, opens a menu over the game (`src/menu.cpp`) with every
+setting of `settings.ini` and the keyboard's keys.
 
 ### Drawing it
 
@@ -814,6 +814,40 @@ drawing the menu with psyz's 2D primitives, would have put it in the VRAM
 
 While the menu is shut no Dear ImGui frame is built and no events are
 passed to it, so it costs nothing and its event queue stays empty.
+
+### The game's look
+
+The menu is drawn in the title menu's font, `CDI\ETC\FONTICON.TIM`, read
+from the disc image when the menu is set up (`src/disc.c`: the .cue's
+first track, ISO 9660, through a file handle of its own, so psyz's libcd
+and its streaming are left alone). It is a 4-bit TIM of 8x8 glyphs by
+character code, 32 to a row, white with a dark drop shadow (0x2421) that
+hardly shows on the title menu's blue; the menu takes the white pixels.
+Dear ImGui gets them through an `ImFontLoader` of its own, which draws a
+glyph at the whole multiple of 8 nearest the font's size, every glyph as
+wide as it is high, as the game spaces them; the menu picks a font size of
+16 pixels up to a window 1199 high, then 24, 32... (half the size of the
+game's own text, which is 8 of 240 lines). The colours are the title
+menu's as drawn: the backdrop's blue (16, 0, 62), its grey entries (156),
+yellow for the row under the cursor (label and value, as the title menu
+lights its entry) and the pink of "Day 001" for headings; no rounded
+corners. Without the font (a disc without it) the menu uses Dear ImGui's.
+
+### SETTINGS in the title menu
+
+`src/title_settings.c` (built with the game's C) gives the title menu a
+seventh entry. The menu is a TaskCore built from a table,
+`sTitleMenuTarget`: names, positions, the entries the cursor skips, and the
+item list each opens; TaskCore makes a TextRow per name and sizes its
+per-entry arrays by their count. The port points the table at copies one
+entry longer, SETTINGS 12 below SHAKE as the entries are spaced, and wraps
+`confirmSlot` (SETTINGS opens the menu; every other entry, and START from
+any entry, goes on as before) and `update` (while the menu is open, from
+SETTINGS or F1, the frame count stays at 0, so the title menu doesn't time
+out to the intro behind it). The decomp is not changed. When the menu
+opens with a pad's button still down (circle, from SETTINGS), Dear ImGui's
+gamepad navigation waits until every button is up, since it reads the
+buttons' state rather than presses.
 
 ### Input
 

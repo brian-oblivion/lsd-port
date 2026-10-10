@@ -1,8 +1,11 @@
 // The settings menu: Dear ImGui drawn over the game's picture, through
-// psyz's overlay hooks.
+// psyz's overlay hooks, dressed as the game's title menu: its font
+// (ETC\FONTICON.TIM, read from the disc when the menu is set up, in whole
+// multiples of its 8x8 pixels), its blue, its grey entries with the one
+// under the cursor yellow, and its pink headings.
 //
 // F1, or a gamepad's Guide button or both its sticks pressed in, opens and
-// closes it. psyz presents the PlayStation's display, then calls the
+// closes it, and so does the title menu's SETTINGS (src/title_settings.c). psyz presents the PlayStation's display, then calls the
 // overlay, which draws into the window's own buffer (the swapchain texture
 // with SDL GPU, the default framebuffer with OpenGL): never into the
 // game's VRAM, so the debug server's screenshots and VRAM dumps, which read
@@ -21,6 +24,7 @@
 // written when the menu closes.
 
 #include "menu.h"
+#include "disc.h"
 
 extern "C" {
 #include "controls.h"
@@ -39,6 +43,7 @@ extern "C" {
 
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
+#include <imgui_internal.h> // ImFontLoader, GetFocusID
 #ifdef LSD_MENU_SDL3_GPU
 #include <imgui_impl_sdlgpu3.h>
 #else
@@ -51,20 +56,31 @@ extern "C" {
 
 namespace {
 
-// The font's height at a 720-pixel-high window; larger windows scale up.
-const float kFontSize = 18.0f;
-const float kBaseHeight = 720.0f;
+// The font's height before ScaleToWindow: the game's 8x8 glyphs at twice
+// their size.
+const float kFontSize = 16.0f;
+const int kGlyph = 8;
+
+// The title menu's colours as it is drawn: the backdrop's blue, the grey of
+// its entries, yellow for the one under the cursor (sTitleMenuTarget's 80
+// and 128 of 128), and the pink of its "Day 001".
+const ImVec4 kBlue(16 / 255.0f, 0.0f, 62 / 255.0f, 1.0f);
+const ImVec4 kGrey(156 / 255.0f, 156 / 255.0f, 156 / 255.0f, 1.0f);
+const ImVec4 kYellow(1.0f, 1.0f, 0.0f, 1.0f);
+const ImVec4 kPink(1.0f, 156 / 255.0f, 156 / 255.0f, 1.0f);
 
 bool sOpen;
 bool sReady;     // Dear ImGui and its renderer are set up
 bool sDrawn;     // this present built a frame to draw (SDL GPU)
 bool sWasBusy;   // the last frame had a popup open or an item in use
 bool sOpening;   // the first frame since it opened
+bool sPadHeld;   // a pad's button held since it opened, kept from Dear ImGui
 int sCapture = -1; // the button waiting for a key, or -1
 float sScale;
 ImGuiStyle sBaseStyle;
 const char* sProblem; // why the last save or key failed, until the next
 PsyzVSyncCb sNextVSync;
+char* sDiscPath;
 #ifdef LSD_MENU_SDL3_GPU
 SDL_GPUDevice* sDevice;
 #endif
@@ -89,6 +105,7 @@ void SetOpen(bool open) {
         io.ClearInputMouse();
         sWasBusy = false;
         sOpening = true;
+        sPadHeld = true;
     } else {
         Save();
     }
@@ -169,12 +186,132 @@ void OnEvent(const SDL_Event* e) {
     }
 }
 
-// Sizes everything to the window: kFontSize at kBaseHeight, larger above.
-void ScaleToWindow() {
-    float scale = ImGui::GetIO().DisplaySize.y / kBaseHeight;
-    if (scale < 1.0f) {
-        scale = 1.0f;
+// The game's font: one bit a pixel, bit 7 leftmost, for ' ' to '~'.
+unsigned char sGlyphs[95][kGlyph];
+
+unsigned Le16(const unsigned char* p) {
+    return p[0] | (unsigned)p[1] << 8;
+}
+
+unsigned Le32(const unsigned char* p) {
+    return Le16(p) | (unsigned)Le16(p + 2) << 16;
+}
+
+// Reads ETC\FONTICON.TIM (in the game's data directory, CDI\) into sGlyphs: a 4-bit TIM with a CLUT (id 0x10,
+// flags 8, then the CLUT's and the image's blocks: length, x, y, width in
+// 16-bit units, height, data), 8x8 glyphs by character code, 32 to a row
+// (the first row, the control codes, empty). A pixel
+// is ink where its CLUT colour is bright: the glyphs are white (0x7FFF)
+// with a drop shadow in a dark grey-blue (0x2421) that hardly shows on the
+// title menu's backdrop, left out here.
+bool LoadGameFont() {
+    size_t size = 0;
+    unsigned char* tim = (unsigned char*)Disc_ReadFile(sDiscPath, "CDI\\ETC\\FONTICON.TIM", &size);
+    bool ok = false;
+    if (tim != nullptr && size >= 20 && Le32(tim) == 0x10 && Le32(tim + 4) == 8) {
+        const unsigned char* clut = tim + 8 + 12;
+        unsigned clutLen = Le32(tim + 8);
+        unsigned colours = Le16(tim + 8 + 8) * Le16(tim + 8 + 10);
+        const unsigned char* image = tim + 8 + clutLen;
+        if (clutLen >= 12 + 2 * colours && colours >= 16 && 8 + clutLen + 12 <= size) {
+            unsigned pitch = Le16(image + 8) * 2; // bytes a row
+            unsigned height = Le16(image + 10);
+            const unsigned char* px = image + 12;
+            if (pitch >= 128 && height >= 32 && 8 + clutLen + 12 + pitch * height <= size) {
+                for (int c = 0; c < 95; c++) {
+                    int gx = (c + ' ') % 32 * kGlyph;
+                    int gy = (c + ' ') / 32 * kGlyph;
+                    for (int y = 0; y < kGlyph; y++) {
+                        unsigned char bits = 0;
+                        for (int x = 0; x < kGlyph; x++) {
+                            unsigned char b = px[(gy + y) * pitch + (gx + x) / 2];
+                            unsigned index = (gx + x) & 1 ? b >> 4 : b & 15;
+                            unsigned colour = Le16(clut + 2 * index);
+                            if ((colour & 31) + (colour >> 5 & 31) + (colour >> 10 & 31) >= 48) {
+                                bits |= 0x80 >> x;
+                            }
+                        }
+                        sGlyphs[c][y] = bits;
+                    }
+                }
+                ok = true;
+            }
+        }
     }
+    SDL_free(tim);
+    return ok;
+}
+
+// An ImFontLoader for sGlyphs: a font of any size draws each glyph at the
+// whole multiple of 8 nearest its size, every glyph as wide as it is high,
+// as the game spaces them.
+bool FontContainsGlyph(ImFontAtlas*, ImFontConfig*, ImWchar c) {
+    return c >= ' ' && c <= '~';
+}
+
+bool FontBakedInit(ImFontAtlas*, ImFontConfig*, ImFontBaked* baked, void*) {
+    baked->Ascent = baked->Size;
+    baked->Descent = 0.0f;
+    return true;
+}
+
+bool FontLoadGlyph(ImFontAtlas* atlas, ImFontConfig* src, ImFontBaked* baked, void*, ImWchar c,
+                   ImFontGlyph* glyph, float* advance) {
+    static ImVector<unsigned char> pixels;
+    if (c < ' ' || c > '~') {
+        return false;
+    }
+    if (advance != nullptr) {
+        *advance = baked->Size;
+        return true;
+    }
+    glyph->Codepoint = c;
+    glyph->AdvanceX = baked->Size;
+    if (c == ' ') {
+        return true;
+    }
+    float density = src->RasterizerDensity * baked->RasterizerDensity;
+    int k = (int)(baked->Size * density / kGlyph + 0.5f);
+    if (k < 1) {
+        k = 1;
+    }
+    int n = kGlyph * k;
+    ImFontAtlasRectId id = ImFontAtlasPackAddRect(atlas, n, n);
+    if (id == ImFontAtlasRectId_Invalid) {
+        return false;
+    }
+    pixels.resize(n * n);
+    for (int y = 0; y < n; y++) {
+        for (int x = 0; x < n; x++) {
+            pixels[y * n + x] = sGlyphs[c - ' '][y / k] & (0x80 >> (x / k)) ? 255 : 0;
+        }
+    }
+    glyph->X0 = 0.0f;
+    glyph->Y0 = 0.0f;
+    glyph->X1 = n / density;
+    glyph->Y1 = n / density;
+    glyph->Visible = true;
+    glyph->PackId = id;
+    ImFontAtlasBakedSetFontGlyphBitmap(atlas, baked, src, glyph, ImFontAtlasPackGetRect(atlas, id),
+                                       pixels.Data, ImTextureFormat_Alpha8, n);
+    return true;
+}
+
+ImFontLoader* GameFontLoader() {
+    static ImFontLoader loader;
+    loader.Name = "FONTICON.TIM";
+    loader.FontSrcContainsGlyph = FontContainsGlyph;
+    loader.FontBakedInit = FontBakedInit;
+    loader.FontBakedLoadGlyph = FontLoadGlyph;
+    return &loader;
+}
+
+// Sizes everything to the window: the glyphs at half the size of the game's
+// own (a 240-line picture's pixels), but at least twice their 8x8, so
+// 16 pixels up to a window 1199 high, then 24, 32...
+void ScaleToWindow() {
+    int k = (int)(ImGui::GetIO().DisplaySize.y / 480.0f + 0.5f);
+    float scale = (k < 2 ? 2 : k) * kGlyph / kFontSize;
     if (SDL_fabsf(scale - sScale) < 0.01f) {
         return;
     }
@@ -185,12 +322,19 @@ void ScaleToWindow() {
     style.FontScaleMain = scale;
 }
 
-// A row of the menu: its label, then the control to its right.
-void Label(const char* label) {
+// A row of the menu: its label, grey, or yellow when the control after it
+// has the cursor (as the title menu shows its entries), then that control.
+void Label(const char* label, bool focused) {
+    float font = ImGui::GetFontSize();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(label);
-    ImGui::SameLine(ImGui::GetFontSize() * 9.0f);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14.0f);
+    ImGui::TextColored(focused ? kYellow : kGrey, "%s", label);
+    ImGui::SameLine(font * 15.0f);
+    ImGui::SetNextItemWidth(font * 13.0f);
+}
+
+// Whether the control about to be made with this id has the cursor.
+bool HasCursor(const char* id) {
+    return ImGui::GetFocusID() == ImGui::GetID(id);
 }
 
 // After a control: why it can't change, or when a change shows.
@@ -223,10 +367,18 @@ void Combo(SettingId id, const char* label, const Choice* choices, int count,
             }
         }
     }
-    Label(label);
     ImGui::PushID(id);
+    bool focused = HasCursor("##");
+    Label(label, focused);
     ImGui::BeginDisabled(Settings_From(id) != nullptr);
-    if (ImGui::BeginCombo("##", shown)) {
+    if (focused) {
+        ImGui::PushStyleColor(ImGuiCol_Text, kYellow);
+    }
+    bool open = ImGui::BeginCombo("##", shown);
+    if (focused) {
+        ImGui::PopStyleColor();
+    }
+    if (open) {
         for (int i = 0; i < count; i++) {
             bool selected = SDL_strcasecmp(value, choices[i].value) == 0;
             ImGui::BeginDisabled(!selected && !Settings_Accepts(id, choices[i].value));
@@ -248,14 +400,17 @@ void Combo(SettingId id, const char* label, const Choice* choices, int count,
 void Slider(SettingId id, const char* label, int min, int max, const char* format,
             const char* note = nullptr) {
     int value = atoi(Settings_Value(id));
-    Label(label);
     ImGui::PushID(id);
+    bool focused = HasCursor("##");
+    Label(label, focused);
     ImGui::BeginDisabled(Settings_From(id) != nullptr);
+    ImGui::PushStyleColor(ImGuiCol_Text, focused ? kYellow : kGrey);
     if (ImGui::SliderInt("##", &value, min, max, format, ImGuiSliderFlags_AlwaysClamp)) {
         char text[16];
         SDL_snprintf(text, sizeof(text), "%d", value);
         Settings_Set(id, text);
     }
+    ImGui::PopStyleColor();
     ImGui::EndDisabled();
     ImGui::PopID();
     Note(id, note);
@@ -263,8 +418,8 @@ void Slider(SettingId id, const char* label, int min, int max, const char* forma
 
 void Check(SettingId id, const char* label, const char* note = nullptr) {
     bool on = SDL_strcmp(Settings_Value(id), "on") == 0;
-    Label(label);
     ImGui::PushID(id);
+    Label(label, HasCursor("##"));
     ImGui::BeginDisabled(Settings_From(id) != nullptr);
     if (ImGui::Checkbox("##", &on)) {
         Settings_Set(id, on ? "on" : "off");
@@ -272,6 +427,13 @@ void Check(SettingId id, const char* label, const char* note = nullptr) {
     ImGui::EndDisabled();
     ImGui::PopID();
     Note(id, note);
+}
+
+// A heading, in the pink of the title menu's "Day 001".
+void Heading(const char* text) {
+    ImGui::PushStyleColor(ImGuiCol_Text, kPink);
+    ImGui::SeparatorText(text);
+    ImGui::PopStyleColor();
 }
 
 void PictureSection() {
@@ -284,24 +446,24 @@ void PictureSection() {
     };
     static const Choice scales[] = {
         {"sharp", "sharp", "crisp, even pixels"},
-        {"nearest", "nearest", "crisp, some pixels wider"},
+        {"nearest", "nearest", "crisp, uneven"},
         {"smooth", "smooth", "blurred"},
-        {"integer", "integer", "whole multiples, bordered"},
+        {"integer", "integer", "whole multiples"},
     };
     static const Choice colours[] = {
-        {"console", "console", "15 bits, as the console"},
-        {"full", "full", "24 bits, no dither"},
+        {"console", "console", "15-bit, as the PS1"},
+        {"full", "full", "24-bit, no dither"},
     };
     static const Choice geometries[] = {
-        {"console", "console", "whole pixels, flat textures"},
+        {"console", "console", "whole pixels"},
         {"precise", "precise", "between pixels"},
-        {"perspective", "perspective", "precise, textures in perspective"},
+        {"perspective", "perspective", "and true textures"},
     };
     char resolution[32];
     int n = atoi(Settings_Value(SETTING_RESOLUTION));
-    SDL_snprintf(resolution, sizeof(resolution), "%%dx (%dx%d)", 320 * n, 240 * n);
+    SDL_snprintf(resolution, sizeof(resolution), "%%dx %dx%d", 320 * n, 240 * n);
 
-    ImGui::SeparatorText("Picture");
+    Heading("PICTURE");
     if (sOpening) {
         // Keys and the pad start from the first setting. (The window is
         // not "appearing" again: no frame passes while the menu is shut.)
@@ -309,29 +471,29 @@ void PictureSection() {
         ImGui::SetNavCursorVisible(true);
         sOpening = false;
     }
-    Combo(SETTING_ASPECT, "Aspect", aspects, SDL_arraysize(aspects), nullptr);
-    Slider(SETTING_RESOLUTION, "Resolution", 1, 8, resolution, "of the 3D");
-    Combo(SETTING_SCALE, "Scale", scales, SDL_arraysize(scales));
-    Check(SETTING_DITHER, "Dither", "the console's 4x4 pattern");
-    Combo(SETTING_COLOUR, "Colour", colours, SDL_arraysize(colours));
-    Combo(SETTING_GEOMETRY, "Geometry", geometries, SDL_arraysize(geometries));
+    Combo(SETTING_ASPECT, "ASPECT", aspects, SDL_arraysize(aspects), nullptr);
+    Slider(SETTING_RESOLUTION, "RESOLUTION", 1, 8, resolution, "of the 3D");
+    Combo(SETTING_SCALE, "SCALE", scales, SDL_arraysize(scales));
+    Check(SETTING_DITHER, "DITHER", "the PS1's 4x4");
+    Combo(SETTING_COLOUR, "COLOUR", colours, SDL_arraysize(colours));
+    Combo(SETTING_GEOMETRY, "GEOMETRY", geometries, SDL_arraysize(geometries));
 }
 
 void DreamSection() {
     static const Choice rates[] = {
-        {"60", "60", "the console's"}, {"display", "display", "its refresh rate"},
+        {"60", "60", "the PS1's"}, {"display", "display", "its refresh rate"},
         {"30", "30"},   {"72", "72"},   {"75", "75"},   {"90", "90"},   {"100", "100"},
         {"120", "120"}, {"144", "144"}, {"165", "165"}, {"180", "180"}, {"240", "240"},
         {"360", "360"},
     };
     bool smooth = SDL_strcmp(Settings_Value(SETTING_SMOOTH), "on") == 0;
 
-    ImGui::SeparatorText("Dream");
-    Slider(SETTING_PACE, "Pace", 10, 30, "%d ticks a second", "14 the console's, 20 the game's");
-    Check(SETTING_SMOOTH, "Smooth", "frames drawn between the ticks");
-    Combo(SETTING_FRAME_RATE, "Frame rate", rates, SDL_arraysize(rates),
+    Heading("DREAM");
+    Slider(SETTING_PACE, "PACE", 10, 30, "%d a second", "14 PS1, 20 game");
+    Check(SETTING_SMOOTH, "SMOOTH", "frames between ticks");
+    Combo(SETTING_FRAME_RATE, "FRAME RATE", rates, SDL_arraysize(rates),
           smooth ? nullptr : "with smooth on");
-    Slider(SETTING_DRAW_DISTANCE, "Draw distance", 1, 4, "%dx", "the fog that far away");
+    Slider(SETTING_DRAW_DISTANCE, "DRAW DISTANCE", 1, 4, "%dx", "the fog that far");
 }
 
 void KeysText(int b, char* out, size_t size) {
@@ -348,9 +510,18 @@ void KeysText(int b, char* out, size_t size) {
 }
 
 void KeyboardSection() {
-    ImGui::SeparatorText("Keyboard");
-    Label("Layout");
-    if (ImGui::BeginCombo("##layout", Controls_LayoutName(Controls_Layout()))) {
+    Heading("KEYBOARD");
+    ImGui::PushID("layout");
+    bool focused = HasCursor("##");
+    Label("LAYOUT", focused);
+    if (focused) {
+        ImGui::PushStyleColor(ImGuiCol_Text, kYellow);
+    }
+    bool open = ImGui::BeginCombo("##", Controls_LayoutName(Controls_Layout()));
+    if (focused) {
+        ImGui::PopStyleColor();
+    }
+    if (open) {
         for (int i = 0; i < Controls_LayoutCount(); i++) {
             if (ImGui::Selectable(Controls_LayoutName(i), i == Controls_Layout())) {
                 Controls_SetLayout(i);
@@ -358,41 +529,49 @@ void KeyboardSection() {
         }
         ImGui::EndCombo();
     }
+    ImGui::PopID();
     ImGui::SameLine();
-    ImGui::TextDisabled("every button its keys");
+    ImGui::TextDisabled("all keys at once");
 
     if (!ImGui::BeginTable("keys", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
         return;
     }
-    ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 6.0f);
-    ImGui::TableSetupColumn("Keys", ImGuiTableColumnFlags_WidthStretch);
+    float font = ImGui::GetFontSize();
+    ImGui::TableSetupColumn("button", ImGuiTableColumnFlags_WidthFixed, font * 9.0f);
+    ImGui::TableSetupColumn("keys", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
     for (int b = 0; b < Controls_ButtonCount(); b++) {
+        char name[16];
         char keys[128];
         ImGui::PushID(b);
+        bool row = sCapture == b || HasCursor("ADD KEY") || HasCursor("CLEAR");
+        SDL_strlcpy(name, Controls_ButtonName(b), sizeof(name));
+        for (char* c = name; *c != '\0'; c++) {
+            *c = (char)SDL_toupper(*c);
+        }
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(Controls_ButtonName(b));
+        ImGui::TextColored(row ? kYellow : kGrey, "%s", name);
         ImGui::TableNextColumn();
         if (sCapture == b) {
-            ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1.0f), "press a key...");
+            ImGui::TextColored(kYellow, "press a key");
         } else {
             KeysText(b, keys, sizeof(keys));
-            ImGui::TextUnformatted(keys);
+            ImGui::TextWrapped("%s", keys);
         }
         ImGui::TableNextColumn();
         if (sCapture == b) {
-            if (ImGui::Button("Cancel")) {
+            if (ImGui::Button("CANCEL")) {
                 sCapture = -1;
             }
         } else {
-            if (ImGui::Button("Add key")) {
+            if (ImGui::Button("ADD KEY")) {
                 sCapture = b;
                 sProblem = nullptr;
             }
             ImGui::SameLine();
-            if (ImGui::Button("Clear")) {
+            if (ImGui::Button("CLEAR")) {
                 Controls_SetKeys(b, nullptr, 0);
             }
         }
@@ -413,8 +592,8 @@ void DrawMenu() {
     }
 
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), io.DisplaySize,
-                                                  IM_COL32(0, 0, 0, 150));
-    float width = ImGui::GetFontSize() * 46.0f;
+                                                  IM_COL32(16, 0, 62, 160));
+    float width = ImGui::GetFontSize() * 54.0f;
     if (width > io.DisplaySize.x * 0.95f) {
         width = io.DisplaySize.x * 0.95f;
     }
@@ -424,27 +603,41 @@ void DrawMenu() {
     if (sOpening) {
         ImGui::SetNextWindowFocus();
     }
-    ImGui::Begin("Settings", nullptr,
+    ImGui::Begin("SETTINGS", nullptr,
                  ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
-    ImGui::TextWrapped("The game runs on behind this menu, without your keys or pad. "
-                       "Changes show at once and are saved to settings.ini and "
-                       "controls.ini when it closes (F1, Escape, or the pad's back "
-                       "button).");
+                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
+                     ImGuiWindowFlags_NoTitleBar);
+    ImGui::TextColored(kYellow, "SETTINGS");
+    ImGui::TextWrapped("The game goes on behind this menu. Changes show at once and are "
+                       "saved when it closes: F1, Escape, or cross.");
     if (sProblem != nullptr) {
-        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.4f, 1.0f), "%s", sProblem);
+        ImGui::TextColored(kPink, "%s", sProblem);
     }
     PictureSection();
     DreamSection();
     KeyboardSection();
     ImGui::Spacing();
-    if (ImGui::Button("Close")) {
+    if (ImGui::Button("CLOSE")) {
         SetOpen(false);
     }
     ImGui::End();
 
     sWasBusy = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId) || ImGui::IsAnyItemActive() ||
                sCapture >= 0;
+}
+
+bool AnyPadButtonHeld() {
+    int count = 0;
+    SDL_JoystickID* ids = SDL_GetGamepads(&count);
+    bool held = false;
+    for (int i = 0; i < count && !held; i++) {
+        SDL_Gamepad* pad = SDL_GetGamepadFromID(ids[i]);
+        for (int b = 0; pad != nullptr && b < SDL_GAMEPAD_BUTTON_COUNT && !held; b++) {
+            held = SDL_GetGamepadButton(pad, (SDL_GamepadButton)b);
+        }
+    }
+    SDL_free(ids);
+    return held;
 }
 
 // PsyzOverlayFrameCB: builds the frame while the menu is open (and, with
@@ -460,6 +653,18 @@ void OnFrame() {
     ImGui_ImplOpenGL3_NewFrame();
 #endif
     ImGui_ImplSDL3_NewFrame();
+    if (sPadHeld) {
+        // Dear ImGui reads the pads' buttons as they are, so the circle that
+        // picked SETTINGS would count as a press: no gamepad navigation
+        // until every button is up.
+        sPadHeld = AnyPadButtonHeld();
+        ImGuiIO& io = ImGui::GetIO();
+        if (sPadHeld) {
+            io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
+        } else {
+            io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+        }
+    }
     ScaleToWindow();
     ImGui::NewFrame();
     DrawMenu();
@@ -478,6 +683,48 @@ void OnFrame() {
 #endif
 }
 
+void SetStyle(ImGuiStyle& style) {
+    ImVec4* c = style.Colors;
+    auto rgb = [](int r, int g, int b, float a = 1.0f) {
+        return ImVec4(r / 255.0f, g / 255.0f, b / 255.0f, a);
+    };
+    ImGui::StyleColorsDark(&style);
+    style.FontSizeBase = kFontSize;
+    style.WindowRounding = style.ChildRounding = style.FrameRounding = 0.0f;
+    style.PopupRounding = style.ScrollbarRounding = style.GrabRounding = 0.0f;
+    style.TabRounding = 0.0f;
+    style.WindowBorderSize = 1.0f;
+    style.WindowPadding = ImVec2(16.0f, 12.0f);
+    style.FramePadding = ImVec2(6.0f, 3.0f);
+    style.ItemSpacing = ImVec2(8.0f, 4.0f);
+    style.SeparatorTextBorderSize = 2.0f;
+    c[ImGuiCol_Text] = kGrey;
+    c[ImGuiCol_TextDisabled] = rgb(110, 96, 170);
+    c[ImGuiCol_WindowBg] = ImVec4(kBlue.x, kBlue.y, kBlue.z, 0.94f);
+    c[ImGuiCol_PopupBg] = rgb(26, 8, 86);
+    c[ImGuiCol_Border] = rgb(90, 70, 160);
+    c[ImGuiCol_FrameBg] = rgb(32, 16, 96);
+    c[ImGuiCol_FrameBgHovered] = rgb(48, 28, 120);
+    c[ImGuiCol_FrameBgActive] = rgb(64, 40, 140);
+    c[ImGuiCol_Button] = rgb(32, 16, 96);
+    c[ImGuiCol_ButtonHovered] = rgb(48, 28, 120);
+    c[ImGuiCol_ButtonActive] = rgb(64, 40, 140);
+    c[ImGuiCol_Header] = rgb(48, 28, 120);
+    c[ImGuiCol_HeaderHovered] = rgb(64, 40, 140);
+    c[ImGuiCol_HeaderActive] = rgb(80, 56, 160);
+    c[ImGuiCol_CheckMark] = kYellow;
+    c[ImGuiCol_SliderGrab] = rgb(156, 156, 0);
+    c[ImGuiCol_SliderGrabActive] = kYellow;
+    c[ImGuiCol_Separator] = rgb(90, 70, 160);
+    c[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
+    c[ImGuiCol_ScrollbarGrab] = rgb(64, 40, 140);
+    c[ImGuiCol_ScrollbarGrabHovered] = rgb(80, 56, 160);
+    c[ImGuiCol_ScrollbarGrabActive] = rgb(96, 72, 180);
+    c[ImGuiCol_TableRowBg] = ImVec4(0, 0, 0, 0);
+    c[ImGuiCol_TableRowBgAlt] = rgb(255, 255, 255, 0.04f);
+    c[ImGuiCol_NavCursor] = kYellow;
+}
+
 void CreateContext() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -488,14 +735,18 @@ void CreateContext() {
     io.ConfigNavSwapGamepadButtons = true;
     ImFontConfig font;
     font.SizePixels = kFontSize;
-    io.Fonts->AddFontDefaultVector(&font);
-    ImGui::StyleColorsDark(&sBaseStyle);
-    sBaseStyle.FontSizeBase = kFontSize;
-    sBaseStyle.WindowRounding = 6.0f;
-    sBaseStyle.FrameRounding = 3.0f;
-    sBaseStyle.WindowPadding = ImVec2(14.0f, 12.0f);
-    sBaseStyle.Colors[ImGuiCol_WindowBg].w = 0.92f;
-    sBaseStyle.Colors[ImGuiCol_PopupBg].w = 1.0f;
+    if (LoadGameFont()) {
+        font.FontLoader = GameFontLoader();
+        font.OversampleH = font.OversampleV = 1;
+        font.PixelSnapH = true;
+        SDL_strlcpy(font.Name, "FONTICON.TIM", sizeof(font.Name));
+        io.Fonts->AddFont(&font);
+    } else {
+        fprintf(stderr, "lsd: no ETC\\FONTICON.TIM on the disc; the settings menu uses "
+                        "Dear ImGui's font\n");
+        io.Fonts->AddFontDefaultVector(&font);
+    }
+    SetStyle(sBaseStyle);
     ImGui::GetStyle() = sBaseStyle;
     sScale = 1.0f;
 }
@@ -558,7 +809,16 @@ void OnVSync() {
 
 } // namespace
 
-void SetUpMenu(void) {
+void Menu_Open(void) {
+    SetOpen(true);
+}
+
+int Menu_IsOpen(void) {
+    return sOpen;
+}
+
+void SetUpMenu(const char* discPath) {
+    sDiscPath = SDL_strdup(discPath);
 #ifdef LSD_MENU_SDL3_GPU
     Psyz_OverlayInit_SDL3GPU(OnInit);
     Psyz_OverlayRender_SDL3GPU(OnRender);

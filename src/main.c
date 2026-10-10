@@ -8,6 +8,7 @@
 #include "controls.h"
 #include "menu.h"
 #include "settings.h"
+#include "title_settings.h"
 
 #include <psyz.h>
 #include <SDL3/SDL_filesystem.h>
@@ -176,9 +177,11 @@ int main(int argc, char** argv) {
     if (SetUpSettings(sSavesDir, &settings, StartError) != 0) {
         return 2;
     }
-    // F1, or a gamepad's Guide button or both sticks pressed in: the settings
-    // menu over the game (src/menu.cpp).
-    SetUpMenu();
+    // F1, or a gamepad's Guide button or both sticks pressed in, or the title
+    // menu's SETTINGS: the settings menu over the game (src/menu.cpp,
+    // src/title_settings.c).
+    SetUpMenu(disc);
+    TitleSettings_Init();
     if (sFrameLimit > 0) {
         sNextVSyncCb = Psyz_SetVSyncCb(CountFrame);
     }

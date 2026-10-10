@@ -84,8 +84,8 @@ The keyboard, by default:
 
 To leave a dream early, pause (Escape), hold Tab and press R (SELECT and
 triangle on the console). Escape does not quit: close the window to quit.
-F1 opens the settings menu ("The settings menu", below) and F4 switches
-to and from fullscreen.
+F1 opens the settings menu ("The settings menu", below), as does SETTINGS
+in the title menu, and F4 switches to and from fullscreen.
 
 A gamepad works as a PlayStation pad through SDL's mapping (south button
 cross, east circle, west square, north triangle; shoulders L1/R1,
@@ -197,9 +197,13 @@ Two more settings in the same file change how the dream moves.
 
 ## The settings menu
 
-F1, or a gamepad's Guide button (or both sticks pressed in together),
-opens a menu over the game with the settings of "Picture" and "Pace" and
-the keyboard's keys; the same again closes it.
+SETTINGS in the title menu (under SHAKE), or F1 anywhere, or a gamepad's
+Guide button (or both sticks pressed in together) anywhere, opens a menu
+over the game with the settings of "Picture" and "Pace" and the keyboard's
+keys; F1 or Escape (cross on a pad) closes it. It is drawn in the title
+menu's own font and colours (the font is read from your disc image; without
+it the menu falls back to a plain one), and the title menu doesn't time out
+to the intro while it is open.
 
 - A change shows at once, but for `aspect`, which applies from the next
   dream (the menus and movies are 4:3 anyway). The window keeps the shape
