@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LSD: Dream Emulator
+Comment=Native port of the PlayStation game; needs your own disc image
+Exec=lsd
+Icon=lsd
+Terminal=false
+Categories=Game;
+StartupWMClass=lsd

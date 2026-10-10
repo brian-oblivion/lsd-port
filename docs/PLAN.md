@@ -130,8 +130,10 @@ answered in that list; the operator approved it on 2026-10-02.
 
 - 64-bit clean: done (task 10), and the default since task 11.
 - macOS: builds in CI on Apple Silicon (arm64, Clang, SDL3 on Metal) and
-  passes the no-disc smoke test; not yet played on a Mac, and no release
-  archive (signing, an app bundle) yet.
+  passes the no-disc smoke test; since task 22 the release workflow makes
+  an unsigned (ad-hoc signed) `.app`, zipped. Not yet played on a Mac;
+  Developer ID signing and notarisation need the operator's Apple account
+  (docs/tasks/22-packaging-handover.md).
 - Texel choice against the console (found in task 13, 2026-10-06): since
   psyz samples each pixel at the PS1's sample point, the speckles are
   gone, but on noisy ground textures many single pixels still show the

@@ -18,11 +18,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 void lsd_game_main(void);
 
-// Says why lsd cannot start, on stderr and, on Windows, where a game is
-// usually started from Explorer and the console closes with it, in a box.
+// Whether a box should say why lsd cannot start, as well as stderr: on
+// Windows, where a game is usually started from Explorer and the console
+// closes with it, and elsewhere when stderr is not a terminal (started from
+// a desktop, a Steam library or Finder) unless SDL has no real display to
+// put a box on (headless runs and CI).
+static int StartErrorInBox(void) {
+#ifdef _WIN32
+    return 1;
+#else
+    const char* driver = SDL_getenv("SDL_VIDEO_DRIVER");
+    return !isatty(STDERR_FILENO) &&
+           (driver == NULL ||
+            (strcmp(driver, "offscreen") != 0 && strcmp(driver, "dummy") != 0));
+#endif
+}
+
+// Says why lsd cannot start, on stderr and, when StartErrorInBox, in a box.
 static void StartError(const char* fmt, ...) {
     char msg[512];
     va_list args;
@@ -30,9 +48,9 @@ static void StartError(const char* fmt, ...) {
     SDL_vsnprintf(msg, sizeof(msg), fmt, args);
     va_end(args);
     fprintf(stderr, "lsd: %s\n", msg);
-#ifdef _WIN32
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "LSD: Dream Emulator", msg, NULL);
-#endif
+    if (StartErrorInBox()) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "LSD: Dream Emulator", msg, NULL);
+    }
 }
 
 // --frames N: exit after N VSyncs, for smoke tests; 0 runs forever.
@@ -122,14 +140,51 @@ static char* FindDiscIn(const char* dir) {
     return path;
 }
 
+// The folder a packaged lsd was started from, as the player sees it, with a
+// trailing separator; NULL when lsd is not packaged. An AppImage runs lsd from
+// a mount of its own, so it is the folder holding the .AppImage ($APPIMAGE);
+// a macOS .app has SDL's base path inside the bundle (Contents/Resources/),
+// so it is the folder holding the .app.
+static char* PackageDir(void) {
+    char* dir = NULL;
+#if defined(__APPLE__)
+    const char* base = SDL_GetBasePath();
+    const char* app = base != NULL ? strstr(base, ".app/Contents/") : NULL;
+    if (app != NULL) {
+        dir = SDL_strndup(base, (size_t)(app - base));
+    }
+#elif !defined(_WIN32)
+    const char* appimage = SDL_getenv("APPIMAGE");
+    if (appimage != NULL && *appimage != '\0') {
+        dir = SDL_strdup(appimage);
+    }
+#endif
+    char* slash = dir != NULL ? strrchr(dir, '/') : NULL;
+    if (slash == NULL) {
+        SDL_free(dir);
+        return NULL;
+    }
+    slash[1] = '\0';
+    return dir;
+}
+
 // The disc image when neither --disc nor LSD_DISC names one: the only .cue
-// in disc/ under the working directory, else in disc/ beside lsd itself
+// in disc/ under the working directory, else in disc/ beside lsd itself,
+// else beside the AppImage or the .app, else in the saves folder
 // (README, "The game").
 static char* FindDefaultDisc(void) {
     char* path = FindDiscIn("");
     const char* base = SDL_GetBasePath();
     if (path == NULL && base != NULL) {
         path = FindDiscIn(base);
+    }
+    char* package = PackageDir();
+    if (path == NULL && package != NULL) {
+        path = FindDiscIn(package);
+    }
+    SDL_free(package);
+    if (path == NULL) {
+        path = FindDiscIn(sSavesDir);
     }
     return path;
 }
@@ -159,18 +214,21 @@ int main(int argc, char** argv) {
             Settings_FromArg(&settings, argv[i], value);
         }
     }
+    // The saves folder first: the disc image can be in it.
+    if (SetUpSaves(saves) != 0) {
+        return 2;
+    }
     if (disc == NULL) {
         disc = FindDefaultDisc();
     }
     if (disc == NULL) {
-        StartError("no disc image; put it in disc/ or pass --disc path/to/game.cue");
+        StartError("no disc image; put it in a folder disc/ beside lsd or in %s,"
+                   " or pass --disc path/to/game.cue",
+                   sSavesDir);
         return 2;
     }
     if (Psyz_CdSetDiskPath(disc) != 0) {
         StartError("cannot read the disc image %s", disc);
-        return 2;
-    }
-    if (SetUpSaves(saves) != 0) {
         return 2;
     }
     SetUpControls(sSavesDir);

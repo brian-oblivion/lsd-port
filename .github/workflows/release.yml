@@ -1,15 +1,23 @@
-# Release archives of the 64-bit builds, Linux and Windows: the binary, the
-# licences of everything linked in, and how to run it (tools/package.sh). No
-# game data and no BIOS: the build never has either.
+# Release packages of the 64-bit builds: Linux (an AppImage and a .tar.gz),
+# Windows (a .zip) and macOS on Apple Silicon (a .zip with an unsigned .app):
+# the binary, the licences of everything in the package, and how to run it
+# (tools/package.sh). No game data and no BIOS: the build never has either.
 #
-# A tag v* builds both and makes a *draft* GitHub release with them, which
-# the operator reads and publishes by hand. Run by hand (workflow_dispatch),
-# it only builds the archives, as workflow artifacts.
+# A tag v* builds them all and makes a *draft* GitHub release with them,
+# which the operator reads and publishes by hand. Run by hand
+# (workflow_dispatch), or by a push to a branch that changes the packaging,
+# it only builds the packages, as workflow artifacts. (Path filters don't
+# apply to tags.)
 name: release
 
 on:
   push:
     tags: ['v*']
+    branches: ['**']
+    paths:
+      - '.github/workflows/release.yml'
+      - 'tools/package.sh'
+      - 'packaging/**'
   workflow_dispatch:
 
 permissions:
@@ -65,7 +73,9 @@ jobs:
             if readelf -d build/lsd | grep NEEDED | grep -v 'libc\.so\|libm\.so\|libgcc_s\.so'; then
               exit 1
             fi
-            objdump -T build/lsd | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+            glibc=$(objdump -T build/lsd | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+            echo "$glibc" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "::notice::newest glibc symbol: $glibc"
           else
             x86_64-w64-mingw32-strip build/lsd.exe
             dlls=$(x86_64-w64-mingw32-objdump -p build/lsd.exe | sed -n 's/.*DLL Name: //p')
@@ -90,15 +100,107 @@ jobs:
           [ "$GITHUB_REF_TYPE" = tag ] || version=$(git rev-parse --short HEAD)
           if [ "${{ matrix.platform }}" = linux-x86_64 ]; then bin=build/lsd; else bin=build/lsd.exe; fi
           tools/package.sh "$bin" "lsd-$version-${{ matrix.platform }}" dist
+          if [ "${{ matrix.platform }}" = linux-x86_64 ]; then
+            tools/package.sh "$bin" "lsd-$version-${{ matrix.platform }}" dist appimage
+          fi
+
+      # The AppImage as a player gets it, with no disc: lsd must say so and
+      # exit with 2 (as build.yml's smoke test). extract-and-run, as the
+      # runner may have no FUSE.
+      - name: Smoke test the AppImage (no disc)
+        if: matrix.platform == 'linux-x86_64'
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          set +e
+          mkdir smoke && cd smoke
+          timeout -s KILL 60 ../dist/*.AppImage --frames 60 2> stderr.txt
+          status=$?
+          cat stderr.txt
+          test "$status" -eq 2 && grep -q 'no disc image' stderr.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: lsd-${{ matrix.platform }}
           path: dist/*
 
+  # macOS on Apple Silicon: the .app, zipped, unsigned (ad-hoc signed only;
+  # README, "Running a release"). From macOS 11, the first on Apple Silicon.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submodules
+        run: |
+          git submodule update --init decomp psyz
+          git -C psyz submodule update --init external/SDL external/cimgui
+          git -C psyz/external/cimgui submodule update --init imgui
+
+      - name: Install requirements
+        run: brew install cmake ninja
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          cmake --build build
+
+      # Stripped; it must need nothing but the system's libraries and
+      # frameworks (SDL is linked in).
+      - name: Check what the binary needs
+        run: |
+          strip build/lsd
+          otool -L build/lsd
+          if otool -L build/lsd | tail -n +2 | grep -v '/usr/lib/\|/System/Library/'; then
+            exit 1
+          fi
+          minos=$(vtool -show-build build/lsd | awk '$1 == "minos" {print $2}')
+          echo "minos $minos" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::notice::macOS minimum: $minos"
+          test "$minos" = 11.0
+
+      - name: Licence texts
+        run: |
+          curl -fsSL https://www.mozilla.org/media/MPL/2.0/index.txt -o "$RUNNER_TEMP/MPL-2.0.txt"
+          grep -q 'Mozilla Public License Version 2.0' "$RUNNER_TEMP/MPL-2.0.txt"
+
+      - name: Package
+        env:
+          MPL_TEXT: ${{ runner.temp }}/MPL-2.0.txt
+        run: |
+          version=${GITHUB_REF_NAME}
+          [ "$GITHUB_REF_TYPE" = tag ] || version=$(git rev-parse --short HEAD)
+          # Info.plist's version: the tag's numbers, 0.0 otherwise
+          VERSION=$(echo "$version" | sed -n 's/^v\([0-9][0-9.]*\)$/\1/p')
+          VERSION=${VERSION:-0.0} tools/package.sh build/lsd "lsd-$version-macos-arm64" dist macos
+
+      # The bundle as a player gets it, with no disc: the .app's lsd must say
+      # so and exit with 2, and the bundle's signature must hold.
+      - name: Smoke test the app (no disc)
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: |
+          set +e
+          mkdir smoke && cd smoke
+          ditto -x -k ../dist/*.zip .
+          app=$(echo */"LSD Dream Emulator.app")
+          codesign --verify --deep --strict --verbose=2 "$app" || exit 1
+          plutil -lint "$app/Contents/Info.plist" || exit 1
+          perl -e 'alarm 60; exec @ARGV' "$app/Contents/MacOS/lsd" --frames 60 2> stderr.txt
+          status=$?
+          cat stderr.txt
+          test "$status" -eq 2 && grep -q 'no disc image' stderr.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsd-macos-arm64
+          path: dist/*
+
   release:
     if: github.ref_type == 'tag'
-    needs: package
+    needs: [package, macos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -115,4 +217,4 @@ jobs:
           ls -l dist
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
             --draft --title "$GITHUB_REF_NAME" \
-            --notes "Native builds of LSD: Dream Emulator for 64-bit Linux and Windows. You need your own disc image of the game (README.txt in each archive); no game data is included."
+            --notes "Native builds of LSD: Dream Emulator for 64-bit Linux (an AppImage, or a .tar.gz), Windows and macOS on Apple Silicon (unsigned; see the README on opening it). You need your own disc image of the game (README.txt in each package; inside the AppImage, usr/share/doc/lsd/); no game data is included."
