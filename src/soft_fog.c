@@ -9,22 +9,28 @@
 // clearest stages a cell 20 cells ahead is less than half fogged, and one at
 // the side of a 16:9 view not at all. So distant things pop in and out.
 //
-// Two things, both through the fog the game already has (the GTE's depth
-// cue, IR0, which the TMD renderer turns into the stage's fog palette rows
-// and fog colour, and culls at ONE), through psyz's depth-cue hook:
+// Two things, through psyz's depth-cue hook, which gives a vertex the fog
+// the game already has (the GTE's depth cue, IR0, which the TMD renderer
+// turns into the stage's fog palette rows and fog colour, and culls at ONE)
+// and a fade (psyz draws the polygon that much transparent):
 //  - edge fog: a cell the map shows, near a cell in view that it hides and
 //    that has something in it, is fogged by how near: fully next to it, not
 //    at all EDGE_BAND cells away. So the window's edges are in the fog where
 //    they can be seen, and a cell that comes into view there was fogged
 //    already. Hidden cells out of view fog nothing.
-//  - fade-in: a cell that starts to be shown starts fully fogged and clears
+//  - fade-in: a cell that starts to be shown starts at full fog and clears
 //    to its edge fog over FADE_SECONDS of frame time.
+// A cell's fog (0..1) is the fog colour over its first FOG_SHARE, never to
+// ONE, and the fade over its last FADE_SHARE: so a cell at full fog is not
+// drawn at all, and one coming into view dissolves in, in the fog colour,
+// before the fog clears. Without psyz's fade (a build without
+// PSYZ_PRECISE_GEOMETRY) the fog goes to ONE instead, where the game culls.
 // Both are worked out per cell at each tick, when the StageMap has refreshed
 // its window (refreshFootprint, wrapped after src/widescreen.c's so its
 // extra cells count), and eased from frame to frame (the Viewport's update,
 // wrapped). The hook takes a vertex's view position back to the world with
-// GsWSMATRIX and blends the fog of the four nearest cell centres in over the
-// game's own: dp + (ONE - dp) * fog. None of it is near the player
+// GsWSMATRIX and blends the fog of the four nearest cell centres, laid over
+// the game's own: dp + (ONE - dp) * fog. None of it is near the player
 // (NEAR_CELLS), where nothing pops.
 //
 // Stages whose chunks are stacked in a column (the grid's isVertical) show
@@ -32,8 +38,9 @@
 // (StageMap__SetFootprintFromQuery), not a window ahead; they are left as
 // they are.
 //
-// Drawing only: the game reads IR0 only to fog and cull faces. Off (the
-// default), no hook is set, and the GTE gives the game's own depth cue.
+// Drawing only: the game reads IR0 only to fog and cull faces, and the fade
+// only reaches the GPU. Off (the default), no hook is set, and the GTE gives
+// the game's own depth cue.
 //
 // Built with the game's C (it needs StageMap's, DayTask's and the Viewport's
 // method tables), not with the port's other files.
@@ -60,7 +67,11 @@
 #define NEAR_RAMP 3.0f
 // How long a cell takes to clear from fully fogged, and how long a cell
 // takes to fog over when an edge comes near it.
-#define FADE_SECONDS 0.6f
+#define FADE_SECONDS 0.8f
+// With psyz's fade: of a cell's fog (0..1), the share over which it fogs
+// over, and the last share, over which it turns transparent.
+#define FOG_SHARE 0.7f
+#define FADE_SHARE 0.6f
 
 // The cells' fog, by world cell, in a square that wraps around: the loaded
 // chunks span at most 60 cells, so no two of them share a slot.
@@ -81,6 +92,7 @@ static int sEnabled;
 static int sNextEnabled;
 static int sInDream; // a DayTask is initialised
 static int sActive;  // in a dream with it on: tracking the cells, the hook set
+static int sFade;    // psyz draws the hook's fade
 static FogCell sCells[GRID * GRID];
 static u32 sTick; // refreshes so far; FogCell.tick is one of them
 static float sSlope = 160.0f / 266.0f, sSlopeMargin = 1.0f; // the view cone (InView)
@@ -115,7 +127,7 @@ static float CellFog(s32 cx, s32 cz) {
     return c->fog;
 }
 
-static int DepthCue(int x, int y, int z, int dp) {
+static int DepthCue(int x, int y, int z, int dp, int* fade) {
     const MATRIX* ws = &GsWSMATRIX;
     float vx = (float)(x - ws->t[0]), vy = (float)(y - ws->t[1]), vz = (float)(z - ws->t[2]);
     // The world position: GsWSMATRIX's rotation, transposed (it is
@@ -135,7 +147,14 @@ static int DepthCue(int x, int y, int z, int dp) {
     if (dp < 0) {
         dp = 0;
     }
-    return dp + (int)((ONE - dp) * fog + 0.5f);
+    if (!sFade) {
+        return dp + (int)((ONE - dp) * fog + 0.5f);
+    }
+    // Fogged over the first FOG_SHARE, never to ONE (where the game culls a
+    // face), and drawn more and more transparent over the last FADE_SHARE.
+    *fade = (int)(ONE * Smooth((fog - (1.0f - FADE_SHARE)) / FADE_SHARE) + 0.5f);
+    dp += (int)((ONE - dp) * Smooth(fog / FOG_SHARE) + 0.5f);
+    return dp < ONE ? dp : ONE - 1;
 }
 
 static int CellHasModel(GridCell* cell) {
@@ -329,7 +348,7 @@ static void Start(void) {
     sTick = 0;
     sLastNs = 0;
     sActive = 1;
-    Psyz_GteSetDepthCueHook(DepthCue);
+    sFade = Psyz_GteSetDepthCueHook(DepthCue);
 }
 
 static void Stop(void) {
