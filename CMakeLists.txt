@@ -55,7 +55,7 @@ list(FILTER LSD_GAME_SOURCES EXCLUDE REGEX "/src/psyq/")
 # src/title_settings.c wrap the game's methods, so they build with the
 # game's C.
 add_library(lsd_game OBJECT ${LSD_GAME_SOURCES} src/widescreen.c src/pacing.c
-    src/draw_distance.c src/title_settings.c)
+    src/draw_distance.c src/soft_fog.c src/title_settings.c)
 target_include_directories(lsd_game PRIVATE ${LSD_DECOMP_DIR}/include)
 target_link_libraries(lsd_game PRIVATE psyz)
 # HOST_BUILD: lsddecomp's switch for any build that is not the PS1's.

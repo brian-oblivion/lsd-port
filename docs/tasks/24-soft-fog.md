@@ -1,5 +1,9 @@
 # Task 24: a softer far edge (fog curve and fade-in)
 
+*Done in the overview session, 2026-10-10 (no handover): `fog = soft`,
+`src/soft_fog.c`; what was found and measured is in `docs/design.md`,
+"Soft fog".*
+
 The operator finds it odd how distant things pop into view as the
 camera turns or the player walks. Raising `draw_distance` is not the
 answer: it thins the fog, so the pops get more visible. Build two

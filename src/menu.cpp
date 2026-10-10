@@ -494,6 +494,10 @@ void DreamSection() {
         {"3", "3x", "the fog 3x as far"},
         {"4", "4x", "the fog 4x as far"},
     };
+    static const Choice fogs[] = {
+        {"console", "console", "the PS1's"},
+        {"soft", "soft", "no pop-in at the edges"},
+    };
     bool smooth = SDL_strcmp(Settings_Value(SETTING_SMOOTH), "on") == 0;
 
     Heading("DREAM");
@@ -502,6 +506,7 @@ void DreamSection() {
     Combo(SETTING_FRAME_RATE, "FRAME RATE", rates, SDL_arraysize(rates),
           smooth ? nullptr : "with smooth on");
     Combo(SETTING_DRAW_DISTANCE, "DRAW DISTANCE", distances, SDL_arraysize(distances));
+    Combo(SETTING_FOG, "FOG", fogs, SDL_arraysize(fogs));
 }
 
 void KeysText(int b, char* out, size_t size) {

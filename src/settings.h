@@ -10,6 +10,7 @@ typedef enum {
     SETTING_SMOOTH,
     SETTING_FRAME_RATE,
     SETTING_DRAW_DISTANCE,
+    SETTING_FOG,
     SETTING_DITHER,
     SETTING_COLOUR,
     SETTING_GEOMETRY,
@@ -31,10 +32,12 @@ void Settings_FromEnv(SettingArgs* args);
 int Settings_FromArg(SettingArgs* args, const char* option, const char* value);
 
 // The settings: aspect, resolution, scale, pace, smooth, frame_rate,
-// draw_distance, dither, colour and geometry, from the command line or environment
+// draw_distance, fog, dither, colour and geometry, from the command line or
+// environment
 // (args), else from <savesDir>settings.ini (written with the defaults when
 // missing), else the defaults. Applies them to psyz and the dream
-// (src/widescreen.c, src/pacing.c, src/draw_distance.c). Returns 0, or -1
+// (src/widescreen.c, src/pacing.c, src/draw_distance.c, src/soft_fog.c).
+// Returns 0, or -1
 // after StartError-style reporting when a command-line or environment value
 // is malformed; a bad line in the file is reported on stderr and its default
 // used. savesDir ends in a separator.
