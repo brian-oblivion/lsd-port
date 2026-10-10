@@ -72,6 +72,12 @@
 // over, and the last share, over which it turns transparent.
 #define FOG_SHARE 0.7f
 #define FADE_SHARE 0.6f
+// The view drawn in a circle (ShapeView): its radius in cells (the game's
+// window reaches 20 ahead), the cells shown all round, and how far past the
+// view's sides the cells are drawn already for a turn.
+#define VIEW_RADIUS 21.0f
+#define NEAR_SHOW 3.0f
+#define TURN_MARGIN 0.45f // radians, about 26 degrees: four ticks of turning
 
 // The cells' fog, by world cell, in a square that wraps around: the loaded
 // chunks span at most 60 cells, so no two of them share a slot.
@@ -213,8 +219,13 @@ static void ComputeEdges(StageMap* self) {
     for (j = 0; j < LOCAL; j++) {
         for (i = 0; i < LOCAL; i++) {
             FogCell* c = CellAt(ox + i, oz + j);
-            if (c->tick == sTick && c->cx == ox + i && c->cz == oz + j && c->hasModel &&
-                !c->shown && InView(self, ox + i, oz + j)) {
+            int loaded = c->tick == sTick && c->cx == ox + i && c->cz == oz + j;
+            float dx = (float)(ox + i - px), dz = (float)(oz + j - pz);
+            // in view: a cell hidden with something in it, or (inside the
+            // circle) a cell of no loaded chunk, where the map ends
+            if (((loaded && c->hasModel && !c->shown) ||
+                 (!loaded && dx * dx + dz * dz <= VIEW_RADIUS * VIEW_RADIUS)) &&
+                InView(self, ox + i, oz + j)) {
                 sDist[i + j * LOCAL] = 0.0f;
             }
         }
@@ -259,8 +270,102 @@ static void ComputeEdges(StageMap* self) {
     }
 }
 
+// The view drawn in a circle: every loaded cell with something in it within
+// VIEW_RADIUS cells, ahead in the view cone widened by TURN_MARGIN, or
+// within NEAR_SHOW cells all round, is shown, and every cell further than
+// VIEW_RADIUS is hidden, whatever the game's window says. So a turn brings
+// cells into view that were drawn already (the window jumps sideways a cell
+// at a time, and to the other axis at 45 degrees), and the edge, and its fog,
+// is where it was. Drawing only, as widescreen.c's extra cells: the cells
+// shown here are hidden again before the next refresh, and the game hides
+// its window's itself. (VIEW_RADIUS, NEAR_SHOW and TURN_MARGIN are above.)
+
+typedef struct {
+    s16 slot;
+    s16 chunk;
+    s16 cell;
+} ShownCell;
+
+static StageMap* sShownMap;
+static int sShownCount;
+static ShownCell sShown[CHUNK_NEIGHBOUR_COUNT * STAGE_SLOT_LATTICE_CELLS];
+
+static void SetCellShown(GridCell* cell, int shown) {
+    for (; cell != NULL; cell = cell->nextInCell) {
+        if (shown) {
+            cell->attribute &= ~GsDOFF;
+        } else {
+            cell->attribute |= GsDOFF;
+        }
+    }
+}
+
+static void HideShown(StageMap* self) {
+    int i;
+    if (self == sShownMap) {
+        for (i = 0; i < sShownCount; i++) {
+            ChunkSlot* slot = &self->slots[sShown[i].slot];
+            if (slot->loader->headerReady != 0 && slot->loader->chunkIndex == sShown[i].chunk) {
+                SetCellShown(slot->cells[sShown[i].cell], 0);
+            }
+        }
+    }
+    sShownMap = self;
+    sShownCount = 0;
+}
+
+static void ShapeView(StageMap* self) {
+    GsCOORD2PARAM* param = self->target->coord2->param;
+    GteLong* pos = self->target->coord2->coord.t;
+    float yaw = param->rotate.vy * (6.2831853f / ONE);
+    float fx = SDL_sinf(yaw), fz = SDL_cosf(yaw);
+    float half = SDL_atanf(sSlope) + TURN_MARGIN;
+    int i, k;
+
+    for (i = 0; i < CHUNK_NEIGHBOUR_COUNT; i++) {
+        ChunkSlot* slot = &self->slots[i];
+        GteLong* o;
+        if (slot->loader->headerReady == 0 || slot->loader->chunkIndex < 0) {
+            continue;
+        }
+        o = slot->cellParent->coord2->coord.t;
+        for (k = 0; k < STAGE_SLOT_LATTICE_CELLS; k++) {
+            GridCell* cell = slot->cells[k];
+            float dx = (o[0] + (k % STAGE_CHUNK_CELLS + 0.5f) * STAGE_CELL_SIZE - pos[0]) /
+                       STAGE_CELL_SIZE;
+            float dz = (o[2] + (k / STAGE_CHUNK_CELLS + 0.5f) * STAGE_CELL_SIZE - pos[2]) /
+                       STAGE_CELL_SIZE;
+            float dist = SDL_sqrtf(dx * dx + dz * dz);
+            int want;
+            if (!CellHasModel(cell)) {
+                continue;
+            }
+            if (dist > VIEW_RADIUS) {
+                SetCellShown(cell, 0);
+                continue;
+            }
+            want = dist <= NEAR_SHOW;
+            if (!want) {
+                float along = dx * fx + dz * fz, across = SDL_fabsf(dx * fz - dz * fx);
+                // the cell's half diagonal, as an angle seen from here
+                want = SDL_atan2f(across, along) <= half + SDL_asinf(0.71f / dist);
+            }
+            if (want && !CellShown(cell)) {
+                SetCellShown(cell, 1);
+                sShown[sShownCount].slot = (s16)i;
+                sShown[sShownCount].chunk = (s16)slot->loader->chunkIndex;
+                sShown[sShownCount].cell = (s16)k;
+                sShownCount++;
+            }
+        }
+    }
+}
+
 static void SoftRefreshFootprint(StageMap* self) {
     int i, k;
+    if (sActive) {
+        HideShown(self);
+    }
     sRefreshFootprint(self);
     if (!sActive || self->chunksLoaded == 0) {
         return;
@@ -279,6 +384,7 @@ static void SoftRefreshFootprint(StageMap* self) {
         sSlope = 160.0f / (float)(h > 0 ? h : 266) * 65536.0f / (float)(scale > 0 ? scale : 65536);
         sSlopeMargin = SDL_sqrtf(1.0f + sSlope * sSlope);
     }
+    ShapeView(self);
     for (i = 0; i < CHUNK_NEIGHBOUR_COUNT; i++) {
         ChunkSlot* slot = &self->slots[i];
         GteLong* o;
@@ -353,6 +459,8 @@ static void Start(void) {
 
 static void Stop(void) {
     sActive = 0;
+    sShownMap = NULL; // what it showed goes with the map, or SoftFog_Set hid it
+    sShownCount = 0;
     Psyz_GteSetDepthCueHook(NULL);
 }
 
@@ -379,6 +487,11 @@ void SoftFog_Set(int on) {
         if (on) {
             Start();
         } else {
+            // the cells it showed hidden; the game shows its window's again
+            // at its next refresh
+            if (sShownMap != NULL) {
+                HideShown(sShownMap);
+            }
             Stop();
         }
     }

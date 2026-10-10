@@ -945,6 +945,25 @@ show whole chunks, the player's and the next by where the player stands
 (`SetFootprintFromQuery`), so cells switch on right beside the player
 there by design; they are left alone.
 
+### The view in a circle
+
+With the fade, walking up to things looked right, but turning did not: the
+game's window moves sideways a cell at a time as the view turns (and to the
+other axis at 45 degrees), so cells kept switching on at the leading side,
+each dissolving in, and the fogged edge moved with the window, as if the
+ground were catching up with the view. So with `soft` on, after each refresh,
+every loaded cell with something in it within 21 cells of the player is
+shown when it is in the view cone widened by 26 degrees a side (about four
+ticks of turning) or within 3 cells, and every cell further than 21 is
+hidden, whatever the game's window says. A turn then brings in cells that
+were drawn already, and the edge is a circle that does not move as the view
+turns; the fog's edges are hidden cells in view (beyond the circle) and,
+inside it, cells of no loaded chunk, where the ring of chunks ends. Drawing
+only, as widescreen.c's extra cells (GsDOFF; the cells shown are hidden
+again before the next refresh). Cells come in now only as the player walks
+toward them, or where the ring of loaded chunks ends near the player
+(task 23's second ring would push that out).
+
 ### The fog
 
 Each tick, after the StageMap's refresh (wrapped after widescreen.c's, so
@@ -1028,3 +1047,9 @@ buffer).
   774 µs `console`, 1027 `soft`, so the fade (psyz carrying the per-vertex
   table) costs about 0.2 ms a frame. GL starts with it on Xvfb; psyz's
   host tests pass.
+- The view in a circle: Kyoto day 30 at 16:9, turning: after the first
+  ticks nothing dissolves while turning, frame for frame like `console`
+  but for the fog at the far edge and where the chunks end. Lockstep, ky47
+  and day 22 at 4:3 and 16:9 with `soft`: the same STATE lines as
+  `console`. Frame time (16:9, machine at load 4): 321 µs standing and
+  355 turning with `console`, 474 and 509 with `soft`.
