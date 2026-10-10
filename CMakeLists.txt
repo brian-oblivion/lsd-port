@@ -38,6 +38,9 @@ set(CMAKE_CXX_STANDARD 17)
 # queue carry no precise vertices and the geometry is always the console's.
 option(LSD_PRECISE_GEOMETRY "Build in the precise and perspective geometry settings" ON)
 set(PSYZ_PRECISE_GEOMETRY ${LSD_PRECISE_GEOMETRY} CACHE BOOL "" FORCE)
+# psyz's libsnd follows Psy-Q 4.0; LSD ships libsnd 3.3, so psyz plays the
+# few functions 3.3 does differently as 3.3 does them.
+set(PSYZ_LIBSND_33 ON CACHE BOOL "" FORCE)
 add_subdirectory(psyz/psyz EXCLUDE_FROM_ALL)
 
 # The game's C, from lsddecomp (decomp/). src/psyq/ is Sony code carried as C
