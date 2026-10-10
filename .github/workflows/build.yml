@@ -39,6 +39,7 @@ jobs:
         run: |
           git submodule update --init decomp psyz
           git -C psyz submodule update --init external/SDL external/cimgui
+          git -C psyz/external/cimgui submodule update --init imgui
 
       # libsdl2-dev is not linked; it pulls in the X11/Wayland/audio headers
       # that SDL3's own build needs, as psyz's CI does. i686 needs the
@@ -112,6 +113,7 @@ jobs:
         run: |
           git submodule update --init decomp psyz
           git -C psyz submodule update --init external/SDL external/cimgui
+          git -C psyz/external/cimgui submodule update --init imgui
 
       - name: Install requirements
         run: brew install cmake ninja
@@ -167,6 +169,7 @@ jobs:
         run: |
           git submodule update --init decomp psyz
           git -C psyz submodule update --init external/SDL external/cimgui
+          git -C psyz/external/cimgui submodule update --init imgui
 
       - name: Install requirements
         run: |

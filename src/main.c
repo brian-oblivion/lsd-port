@@ -6,7 +6,9 @@
 // (0 after --frames N).
 
 #include "controls.h"
+#include "menu.h"
 #include "settings.h"
+#include "title_settings.h"
 
 #include <psyz.h>
 #include <SDL3/SDL_filesystem.h>
@@ -143,12 +145,8 @@ int main(int argc, char** argv) {
     // LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,
     // LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY):
     // the picture and the dream's pacing, over settings.ini (src/settings.c).
-    SettingArgs settings = {
-        getenv("LSD_ASPECT"), getenv("LSD_RESOLUTION"), getenv("LSD_SCALE"),
-        getenv("LSD_PACE"),   getenv("LSD_SMOOTH"),     getenv("LSD_FRAME_RATE"),
-        getenv("LSD_DRAW_DISTANCE"), getenv("LSD_DITHER"), getenv("LSD_COLOUR"),
-        getenv("LSD_GEOMETRY"),
-    };
+    SettingArgs settings = {0};
+    Settings_FromEnv(&settings);
     for (int i = 1; i < argc - 1; i++) {
         const char* value = argv[i + 1];
         if (strcmp(argv[i], "--frames") == 0) {
@@ -157,26 +155,8 @@ int main(int argc, char** argv) {
             disc = value;
         } else if (strcmp(argv[i], "--saves") == 0) {
             saves = value;
-        } else if (strcmp(argv[i], "--aspect") == 0) {
-            settings.aspect = value;
-        } else if (strcmp(argv[i], "--resolution") == 0) {
-            settings.resolution = value;
-        } else if (strcmp(argv[i], "--scale") == 0) {
-            settings.scale = value;
-        } else if (strcmp(argv[i], "--pace") == 0) {
-            settings.pace = value;
-        } else if (strcmp(argv[i], "--smooth") == 0) {
-            settings.smooth = value;
-        } else if (strcmp(argv[i], "--frame-rate") == 0) {
-            settings.frameRate = value;
-        } else if (strcmp(argv[i], "--draw-distance") == 0) {
-            settings.drawDistance = value;
-        } else if (strcmp(argv[i], "--dither") == 0) {
-            settings.dither = value;
-        } else if (strcmp(argv[i], "--colour") == 0) {
-            settings.colour = value;
-        } else if (strcmp(argv[i], "--geometry") == 0) {
-            settings.geometry = value;
+        } else {
+            Settings_FromArg(&settings, argv[i], value);
         }
     }
     if (disc == NULL) {
@@ -197,6 +177,11 @@ int main(int argc, char** argv) {
     if (SetUpSettings(sSavesDir, &settings, StartError) != 0) {
         return 2;
     }
+    // F1, or a gamepad's Guide button or both sticks pressed in, or the title
+    // menu's SETTINGS: the settings menu over the game (src/menu.cpp,
+    // src/title_settings.c).
+    SetUpMenu(disc);
+    TitleSettings_Init();
     if (sFrameLimit > 0) {
         sNextVSyncCb = Psyz_SetVSyncCb(CountFrame);
     }

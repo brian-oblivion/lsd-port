@@ -18,7 +18,11 @@
 // Runs the dream at `pace` ticks a second and, with `smooth`, draws frames
 // between its ticks (src/pacing.c), at `frameRate` frames a second (or a
 // PACING_FRAME_RATE_ value). At 20 without smooth the game paces itself,
-// untouched. Call before the game starts.
+// as its own loop does. Call before the game starts.
 void Pacing_Init(int pace, int smooth, int frameRate);
+
+// The same, from the next pass of the loop on, while the game runs (between
+// two passes: from a VSync callback, say).
+void Pacing_Set(int pace, int smooth, int frameRate);
 
 #endif

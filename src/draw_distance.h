@@ -10,4 +10,7 @@
 // Call before the game starts.
 void DrawDistance_Init(int scale);
 
+// The same while the game runs; in a dream, from its next frame.
+void DrawDistance_Set(int scale);
+
 #endif

@@ -29,6 +29,10 @@
 // step) and updateScale are wrapped to leave scalex at ONE + 1 instead of
 // ONE: the GTE path, like their siblings, a 1/4096 larger.
 //
+// The ratio is taken up when a dream starts, so a change from the settings
+// menu (Widescreen_Set) shows from the next one; at 4:3 the wrappers below
+// leave everything as the game has it.
+//
 // Built with the game's C (it needs DayTask's, StageMap's and
 // VariantSprite's method tables), not with the port's other files.
 
@@ -47,6 +51,9 @@
 
 static int sScaleX = 0x10000; // the GTE's X scale in the dream, 16.16
 static float sStretch = 1.0f; // the display's stretch in the dream
+// The same for the next dream (Widescreen_Set).
+static int sNextScaleX = 0x10000;
+static float sNextStretch = 1.0f;
 static int sWide;             // 1 while a DayTask is initialised
 static int sExtraCount;       // how many of sExtras (below) are shown
 
@@ -55,6 +62,11 @@ static void (*sDayTaskOnInit)(DayTask* self, s32 a, s32 b, s32 c);
 static void (*sDayTaskOnDeinit)(DayTask* self);
 
 static void EnterWide(void) {
+    sScaleX = sNextScaleX;
+    sStretch = sNextStretch;
+    if (sStretch <= 1.0f) {
+        return; // 4:3: the console's picture
+    }
     sWide = 1;
     Psyz_GteSetScreenXScale(sScaleX);
     Psyz_VideoSetDisplayStretch(sStretch);
@@ -207,7 +219,7 @@ static void (*sVariantSpriteReset)(VariantSprite* self, s32 variant);
 static void (*sVariantSpriteUpdateScale)(VariantSprite* self, s32 set, Ratio16* ratios);
 
 static void UnplainSprite(VariantSprite* self) {
-    if (self->sprite.scalex == ONE && self->sprite.scaley == ONE) {
+    if (sNextStretch > 1.0f && self->sprite.scalex == ONE && self->sprite.scaley == ONE) {
         self->sprite.scalex = ONE + 1;
     }
 }
@@ -242,14 +254,23 @@ int Widescreen_Parse(const char* aspect, float* ratio) {
     return 0;
 }
 
-void Widescreen_Init(float ratio) {
+void Widescreen_Set(float ratio) {
     const float console = 4.0f / 3.0f;
     if (ratio <= console + 0.001f) {
-        return; // 4:3, or narrower: the console's picture
+        // 4:3, or narrower: the console's picture
+        sNextStretch = 1.0f;
+        sNextScaleX = 0x10000;
+        return;
     }
-    sStretch = ratio / console;
-    sScaleX = (int)(0x10000 / sStretch + 0.5f);
-    Psyz_VideoSetWindowAspect(ratio);
+    sNextStretch = ratio / console;
+    sNextScaleX = (int)(0x10000 / sNextStretch + 0.5f);
+}
+
+void Widescreen_Init(float ratio) {
+    Widescreen_Set(ratio);
+    if (sNextStretch > 1.0f) {
+        Psyz_VideoSetWindowAspect(ratio);
+    }
     sDayTaskOnInit = gDayTaskMethods.onInit;
     sDayTaskOnDeinit = gDayTaskMethods.onDeinit;
     gDayTaskMethods.onInit = WideDayTaskOnInit;

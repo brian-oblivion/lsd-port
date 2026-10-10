@@ -9,6 +9,10 @@
 // triangle l1 r1 l2 r2 select start l3 r3. Keys are SDL's key names (SDL_
 // GetScancodeName: "W", "Left Shift", "Space", "Up", "Escape", ...), which
 // stand for a key's place on a US keyboard, not the letter printed on it.
+//
+// The settings menu (src/menu.cpp) changes the keys while the game runs and
+// writes what it changed back into the file (Ini_Update): the layout line,
+// and a line for each button whose keys are no longer the layout's.
 
 #include "controls.h"
 #include "ini.h"
@@ -20,7 +24,7 @@
 #include <SDL3/SDL_stdinc.h>
 #include <stdio.h>
 
-#define MAX_KEYS_PER_BUTTON 4
+#define MAX_KEYS_PER_BUTTON CONTROLS_KEYS_MAX
 
 typedef struct {
     const char* name;
@@ -116,13 +120,23 @@ static void WriteDefaults(const char* path) {
     SDL_CloseIO(io);
 }
 
-// Applies one setting to the Layout ctx (IniApplyFn).
+// The keys in use, the layout they started from, and as controls.ini has
+// them: the layout it names, its keys, and the buttons it lists.
+static Layout sKeys;
+static int sLayout;
+static Layout sFileKeys;
+static int sFileLayout;
+static int sFileLists[BUTTON_COUNT];
+static char* sPath; // controls.ini
+
+// Applies one setting to sFileKeys (IniApplyFn).
 static int ApplySetting(void* ctx, const char* name, char* value, const char* path, int lineNo) {
     Layout* keys = ctx;
     if (SDL_strcasecmp(name, "layout") == 0) {
         for (int i = 0; i < LAYOUT_COUNT; i++) {
             if (SDL_strcasecmp(value, sLayouts[i].name) == 0) {
                 SDL_memcpy(keys, sLayouts[i].keys, sizeof(*keys));
+                sFileLayout = i;
                 return 0;
             }
         }
@@ -155,34 +169,124 @@ static int ApplySetting(void* ctx, const char* name, char* value, const char* pa
             list[n++] = key;
         }
         SDL_memcpy((*keys)[b], list, sizeof(list));
+        sFileLists[b] = 1;
         return 0;
     }
     fprintf(stderr, "lsd: %s:%d: no button %s\n", path, lineNo, name);
     return -1;
 }
 
-void SetUpControls(const char* savesDir) {
-    char* path;
-    SDL_asprintf(&path, "%scontrols.ini", savesDir);
-    Layout keys;
-    SDL_memcpy(&keys, sLayouts[0].keys, sizeof(keys));
-
-    // A line that means nothing is reported and skipped; the rest apply.
-    if (Ini_Read(path, ApplySetting, &keys) != 0) {
-        WriteDefaults(path);
-    }
-
+// Hands sKeys to psyz as pad 1's keyboard map.
+static void UseKeys(void) {
     PsyzKeyBinding map[BUTTON_COUNT * MAX_KEYS_PER_BUTTON];
     int count = 0;
     for (int b = 0; b < BUTTON_COUNT; b++) {
-        for (int k = 0; k < MAX_KEYS_PER_BUTTON && keys[b][k] != 0; k++) {
-            map[count].key = keys[b][k];
+        for (int k = 0; k < MAX_KEYS_PER_BUTTON && sKeys[b][k] != 0; k++) {
+            map[count].key = sKeys[b][k];
             map[count].buttons = sButtons[b].mask;
             count++;
         }
     }
     if (Psyz_PadsSetKeyboardMap(map, count) < 0) {
-        fprintf(stderr, "lsd: the keyboard controls from %s were refused\n", path);
+        fprintf(stderr, "lsd: the keyboard controls from %s were refused\n", sPath);
     }
-    SDL_free(path);
+}
+
+void SetUpControls(const char* savesDir) {
+    SDL_asprintf(&sPath, "%scontrols.ini", savesDir);
+    SDL_memcpy(&sFileKeys, sLayouts[0].keys, sizeof(sFileKeys));
+
+    // A line that means nothing is reported and skipped; the rest apply.
+    if (Ini_Read(sPath, ApplySetting, &sFileKeys) != 0) {
+        WriteDefaults(sPath);
+    }
+    SDL_memcpy(&sKeys, &sFileKeys, sizeof(sKeys));
+    sLayout = sFileLayout;
+    UseKeys();
+}
+
+int Controls_ButtonCount(void) {
+    return BUTTON_COUNT;
+}
+
+const char* Controls_ButtonName(int b) {
+    return sButtons[b].name;
+}
+
+int Controls_Keys(int b, int keys[CONTROLS_KEYS_MAX]) {
+    int n = 0;
+    while (n < MAX_KEYS_PER_BUTTON && sKeys[b][n] != 0) {
+        keys[n] = sKeys[b][n];
+        n++;
+    }
+    return n;
+}
+
+void Controls_SetKeys(int b, const int* keys, int count) {
+    SDL_memset(sKeys[b], 0, sizeof(sKeys[b]));
+    for (int k = 0; k < count && k < MAX_KEYS_PER_BUTTON; k++) {
+        sKeys[b][k] = (SDL_Scancode)keys[k];
+    }
+    UseKeys();
+}
+
+int Controls_LayoutCount(void) {
+    return LAYOUT_COUNT;
+}
+
+const char* Controls_LayoutName(int i) {
+    return sLayouts[i].name;
+}
+
+int Controls_Layout(void) {
+    return sLayout;
+}
+
+void Controls_SetLayout(int i) {
+    sLayout = i;
+    SDL_memcpy(&sKeys, sLayouts[i].keys, sizeof(sKeys));
+    UseKeys();
+}
+
+// A button's keys as controls.ini lists them ("W, Up"), into out.
+static void FormatKeys(const SDL_Scancode* keys, char* out, size_t size) {
+    out[0] = '\0';
+    for (int k = 0; k < MAX_KEYS_PER_BUTTON && keys[k] != 0; k++) {
+        SDL_strlcat(out, k ? ", " : "", size);
+        SDL_strlcat(out, SDL_GetScancodeName(keys[k]), size);
+    }
+}
+
+int Controls_Save(void) {
+    IniSetting set[1 + BUTTON_COUNT];
+    char lists[BUTTON_COUNT][128];
+    const Layout* layout = sLayouts[sLayout].keys;
+    int count = 0;
+    if (sLayout != sFileLayout) {
+        set[count].name = "layout";
+        set[count].value = sLayouts[sLayout].name;
+        count++;
+    }
+    // A button the file lists, when its keys changed; one it doesn't, when
+    // they are no longer the layout's.
+    for (int b = 0; b < BUTTON_COUNT; b++) {
+        const SDL_Scancode* than = sFileLists[b] ? sFileKeys[b] : (*layout)[b];
+        if (SDL_memcmp(sKeys[b], than, sizeof(sKeys[b])) == 0) {
+            continue;
+        }
+        FormatKeys(sKeys[b], lists[b], sizeof(lists[b]));
+        set[count].name = sButtons[b].name;
+        set[count].value = lists[b];
+        count++;
+        sFileLists[b] = 1;
+    }
+    if (count == 0) {
+        return 0;
+    }
+    if (Ini_Update(sPath, set, count) != 0) {
+        return -1;
+    }
+    SDL_memcpy(&sFileKeys, &sKeys, sizeof(sFileKeys));
+    sFileLayout = sLayout;
+    return 0;
 }

@@ -15,6 +15,11 @@
 // environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,
 // LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY)
 // win over the file.
+//
+// The settings menu (src/menu.cpp) changes them while the game runs and
+// writes those it changed back into the file (Ini_Update), leaving the
+// ones the command line or the environment gave alone. Aspect shows from the
+// next dream (src/widescreen.c); the rest at once.
 
 #include "settings.h"
 #include "draw_distance.h"
@@ -29,7 +34,7 @@
 #include <stdlib.h>
 
 typedef struct {
-    float aspect;
+    char aspect[24]; // "W:H"
     int resolution;
     PsyzScaleMode scale;
     int pace;
@@ -42,8 +47,33 @@ typedef struct {
 } Settings;
 
 static const Settings sDefaults = {
-    4.0f / 3.0f, 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1, 1,
+    "4:3", 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1, 1,
     PSYZ_COLOR_DEPTH_15, PSYZ_GEOMETRY_CONSOLE,
+};
+
+#define STR_(x) #x
+#define STR(x) STR_(x)
+
+// Each setting's name in the file, option, environment variable and what it
+// takes.
+static const struct {
+    const char* name;
+    const char* option;
+    const char* env;
+    const char* wants;
+} sInfo[SETTING_COUNT] = {
+    {"aspect", "--aspect", "LSD_ASPECT", "width:height, such as 16:9"},
+    {"resolution", "--resolution", "LSD_RESOLUTION", "1 to " STR(PSYZ_INTERNAL_RES_MAX)},
+    {"scale", "--scale", "LSD_SCALE", "nearest, sharp, smooth or integer"},
+    {"pace", "--pace", "LSD_PACE", STR(PACING_PACE_MIN) " to " STR(PACING_PACE_MAX)},
+    {"smooth", "--smooth", "LSD_SMOOTH", "on or off"},
+    {"frame_rate", "--frame-rate", "LSD_FRAME_RATE",
+     "60, display or " STR(PACING_FRAME_RATE_MIN) " to " STR(PACING_FRAME_RATE_MAX)},
+    {"draw_distance", "--draw-distance", "LSD_DRAW_DISTANCE",
+     STR(DRAW_DISTANCE_MIN) " to " STR(DRAW_DISTANCE_MAX)},
+    {"dither", "--dither", "LSD_DITHER", "on or off"},
+    {"colour", "--colour", "LSD_COLOUR", "console or full"},
+    {"geometry", "--geometry", "LSD_GEOMETRY", "console, precise or perspective"},
 };
 
 static const struct {
@@ -201,68 +231,115 @@ static int ParseGeometry(const char* s, PsyzGeometry* out) {
     return 0;
 }
 
+static const char* const sGeometries[] = {"console", "precise", "perspective"};
+
+// Whether this build draws more than the console's geometry.
+#ifdef LSD_PRECISE_GEOMETRY
+static const int sGeometryBuilt = 1;
+#else
+static const int sGeometryBuilt = 0;
+#endif
+
+static int ParseAspect(const char* s, char* out, size_t size) {
+    float ratio;
+    unsigned w, h;
+    if (Widescreen_Parse(s, &ratio) != 0 || sscanf(s, "%u:%u", &w, &h) != 2) {
+        return -1;
+    }
+    SDL_snprintf(out, size, "%u:%u", w, h);
+    return 0;
+}
+
+// Parses one setting into set. Returns 0, or -1 if malformed.
+static int Parse(SettingId id, const char* s, Settings* set) {
+    switch (id) {
+    case SETTING_ASPECT:
+        return ParseAspect(s, set->aspect, sizeof(set->aspect));
+    case SETTING_RESOLUTION:
+        return ParseResolution(s, &set->resolution);
+    case SETTING_SCALE:
+        return ParseScale(s, &set->scale);
+    case SETTING_PACE:
+        return ParsePace(s, &set->pace);
+    case SETTING_SMOOTH:
+        return ParseOnOff(s, &set->smooth);
+    case SETTING_FRAME_RATE:
+        return ParseFrameRate(s, &set->frameRate);
+    case SETTING_DRAW_DISTANCE:
+        return ParseDrawDistance(s, &set->drawDistance);
+    case SETTING_DITHER:
+        return ParseOnOff(s, &set->dither);
+    case SETTING_COLOUR:
+        return ParseColour(s, &set->colour);
+    case SETTING_GEOMETRY:
+        return ParseGeometry(s, &set->geometry);
+    default:
+        return -1;
+    }
+}
+
+// One setting of set as settings.ini writes it, into out.
+static void Format(SettingId id, const Settings* set, char* out, size_t size) {
+    switch (id) {
+    case SETTING_ASPECT:
+        SDL_strlcpy(out, set->aspect, size);
+        break;
+    case SETTING_RESOLUTION:
+        SDL_snprintf(out, size, "%d", set->resolution);
+        break;
+    case SETTING_SCALE:
+        for (int i = 0; i < SCALE_COUNT; i++) {
+            if (sScales[i].mode == set->scale) {
+                SDL_strlcpy(out, sScales[i].name, size);
+            }
+        }
+        break;
+    case SETTING_PACE:
+        SDL_snprintf(out, size, "%d", set->pace);
+        break;
+    case SETTING_SMOOTH:
+        SDL_strlcpy(out, set->smooth ? "on" : "off", size);
+        break;
+    case SETTING_FRAME_RATE:
+        if (set->frameRate == PACING_FRAME_RATE_CONSOLE) {
+            SDL_strlcpy(out, "60", size);
+        } else if (set->frameRate == PACING_FRAME_RATE_DISPLAY) {
+            SDL_strlcpy(out, "display", size);
+        } else {
+            SDL_snprintf(out, size, "%d", set->frameRate);
+        }
+        break;
+    case SETTING_DRAW_DISTANCE:
+        SDL_snprintf(out, size, "%d", set->drawDistance);
+        break;
+    case SETTING_DITHER:
+        SDL_strlcpy(out, set->dither ? "on" : "off", size);
+        break;
+    case SETTING_COLOUR:
+        SDL_strlcpy(out, set->colour == PSYZ_COLOR_DEPTH_24 ? "full" : "console", size);
+        break;
+    case SETTING_GEOMETRY:
+        SDL_strlcpy(out, sGeometries[set->geometry], size);
+        break;
+    default:
+        out[0] = '\0';
+        break;
+    }
+}
+
 // IniApplyFn for settings.ini, into the Settings ctx.
 static int ApplySetting(void* ctx, const char* name, char* value, const char* path, int lineNo) {
-    Settings* set = ctx;
-    if (SDL_strcasecmp(name, "aspect") == 0) {
-        if (Widescreen_Parse(value, &set->aspect) == 0) {
+    for (int id = 0; id < SETTING_COUNT; id++) {
+        if (SDL_strcasecmp(name, sInfo[id].name) != 0) {
+            continue;
+        }
+        if (Parse(id, value, ctx) == 0) {
             return 0;
         }
-        fprintf(stderr, "lsd: %s:%d: aspect wants width:height, such as 16:9\n", path, lineNo);
-    } else if (SDL_strcasecmp(name, "resolution") == 0) {
-        if (ParseResolution(value, &set->resolution) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: resolution wants 1 to %d\n", path, lineNo,
-                PSYZ_INTERNAL_RES_MAX);
-    } else if (SDL_strcasecmp(name, "scale") == 0) {
-        if (ParseScale(value, &set->scale) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: scale wants nearest, sharp, smooth or integer\n", path,
-                lineNo);
-    } else if (SDL_strcasecmp(name, "pace") == 0) {
-        if (ParsePace(value, &set->pace) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: pace wants %d to %d\n", path, lineNo, PACING_PACE_MIN,
-                PACING_PACE_MAX);
-    } else if (SDL_strcasecmp(name, "smooth") == 0) {
-        if (ParseOnOff(value, &set->smooth) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: smooth wants on or off\n", path, lineNo);
-    } else if (SDL_strcasecmp(name, "frame_rate") == 0) {
-        if (ParseFrameRate(value, &set->frameRate) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: frame_rate wants 60, display or %d to %d\n", path, lineNo,
-                PACING_FRAME_RATE_MIN, PACING_FRAME_RATE_MAX);
-    } else if (SDL_strcasecmp(name, "draw_distance") == 0) {
-        if (ParseDrawDistance(value, &set->drawDistance) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: draw_distance wants %d to %d\n", path, lineNo,
-                DRAW_DISTANCE_MIN, DRAW_DISTANCE_MAX);
-    } else if (SDL_strcasecmp(name, "dither") == 0) {
-        if (ParseOnOff(value, &set->dither) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: dither wants on or off\n", path, lineNo);
-    } else if (SDL_strcasecmp(name, "colour") == 0) {
-        if (ParseColour(value, &set->colour) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: colour wants console or full\n", path, lineNo);
-    } else if (SDL_strcasecmp(name, "geometry") == 0) {
-        if (ParseGeometry(value, &set->geometry) == 0) {
-            return 0;
-        }
-        fprintf(stderr, "lsd: %s:%d: geometry wants console, precise or perspective\n", path,
-                lineNo);
-    } else {
-        fprintf(stderr, "lsd: %s:%d: no setting %s\n", path, lineNo, name);
+        fprintf(stderr, "lsd: %s:%d: %s wants %s\n", path, lineNo, name, sInfo[id].wants);
+        return -1;
     }
+    fprintf(stderr, "lsd: %s:%d: no setting %s\n", path, lineNo, name);
     return -1;
 }
 
@@ -276,70 +353,177 @@ static void WriteDefaults(const char* path) {
     SDL_CloseIO(io);
 }
 
+// The settings in use, and as settings.ini has them (the defaults where it
+// doesn't): the menu saves those that differ.
+static Settings sSet;
+static Settings sFile;
+static const char* sFrom[SETTING_COUNT];
+static char sText[SETTING_COUNT][24]; // sSet's, formatted
+static unsigned sPending;             // settings changed but not yet applied
+static char* sPath;                   // settings.ini
+
+static void Apply(SettingId id) {
+    float ratio;
+    switch (id) {
+    case SETTING_ASPECT:
+        Widescreen_Parse(sSet.aspect, &ratio);
+        Widescreen_Set(ratio);
+        break;
+    case SETTING_RESOLUTION:
+        Psyz_VideoSetInternalResolution((unsigned)sSet.resolution);
+        break;
+    case SETTING_SCALE:
+        Psyz_VideoSetScaleMode(sSet.scale);
+        break;
+    case SETTING_PACE:
+    case SETTING_SMOOTH:
+    case SETTING_FRAME_RATE:
+        Pacing_Set(sSet.pace, sSet.smooth, sSet.frameRate);
+        break;
+    case SETTING_DRAW_DISTANCE:
+        DrawDistance_Set(sSet.drawDistance);
+        break;
+    case SETTING_DITHER:
+        Psyz_VideoSetDitheringMode(sSet.dither ? PSYZ_DITHER_AUTO : PSYZ_DITHER_OFF);
+        break;
+    case SETTING_COLOUR:
+        Psyz_VideoSetColorDepth(sSet.colour);
+        break;
+    case SETTING_GEOMETRY:
+        if (Psyz_VideoSetGeometry(sSet.geometry) != 0) {
+            fprintf(stderr, "lsd: geometry: this build has only the console's "
+                            "(LSD_PRECISE_GEOMETRY is off)\n");
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+void Settings_FromEnv(SettingArgs* args) {
+    for (int id = 0; id < SETTING_COUNT; id++) {
+        const char* value = getenv(sInfo[id].env);
+        if (value != NULL) {
+            args->value[id] = value;
+            args->from[id] = sInfo[id].env;
+        }
+    }
+}
+
+int Settings_FromArg(SettingArgs* args, const char* option, const char* value) {
+    for (int id = 0; id < SETTING_COUNT; id++) {
+        if (SDL_strcmp(option, sInfo[id].option) == 0) {
+            args->value[id] = value;
+            args->from[id] = sInfo[id].option;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int SetUpSettings(const char* savesDir, const SettingArgs* args,
                   void (*error)(const char* fmt, ...)) {
-    Settings set = sDefaults;
-    char* path;
-    SDL_asprintf(&path, "%ssettings.ini", savesDir);
-    if (Ini_Read(path, ApplySetting, &set) != 0) {
-        WriteDefaults(path);
+    sSet = sDefaults;
+    SDL_asprintf(&sPath, "%ssettings.ini", savesDir);
+    if (Ini_Read(sPath, ApplySetting, &sSet) != 0) {
+        WriteDefaults(sPath);
     }
-    SDL_free(path);
+    sFile = sSet;
 
-    if (args->aspect != NULL && Widescreen_Parse(args->aspect, &set.aspect) != 0) {
-        error("--aspect wants width:height, such as 16:9 (got %s)", args->aspect);
-        return -1;
+    for (int id = 0; id < SETTING_COUNT; id++) {
+        if (args->value[id] == NULL) {
+            continue;
+        }
+        if (Parse(id, args->value[id], &sSet) != 0) {
+            error("%s wants %s (got %s)", args->from[id], sInfo[id].wants, args->value[id]);
+            return -1;
+        }
+        sFrom[id] = args->from[id];
     }
-    if (args->resolution != NULL && ParseResolution(args->resolution, &set.resolution) != 0) {
-        error("--resolution wants 1 to %d (got %s)", PSYZ_INTERNAL_RES_MAX, args->resolution);
-        return -1;
-    }
-    if (args->scale != NULL && ParseScale(args->scale, &set.scale) != 0) {
-        error("--scale wants nearest, sharp, smooth or integer (got %s)", args->scale);
-        return -1;
-    }
-    if (args->pace != NULL && ParsePace(args->pace, &set.pace) != 0) {
-        error("--pace wants %d to %d (got %s)", PACING_PACE_MIN, PACING_PACE_MAX, args->pace);
-        return -1;
-    }
-    if (args->smooth != NULL && ParseOnOff(args->smooth, &set.smooth) != 0) {
-        error("--smooth wants on or off (got %s)", args->smooth);
-        return -1;
-    }
-    if (args->frameRate != NULL && ParseFrameRate(args->frameRate, &set.frameRate) != 0) {
-        error("--frame-rate wants 60, display or %d to %d (got %s)", PACING_FRAME_RATE_MIN,
-              PACING_FRAME_RATE_MAX, args->frameRate);
-        return -1;
-    }
-    if (args->drawDistance != NULL &&
-        ParseDrawDistance(args->drawDistance, &set.drawDistance) != 0) {
-        error("--draw-distance wants %d to %d (got %s)", DRAW_DISTANCE_MIN, DRAW_DISTANCE_MAX,
-              args->drawDistance);
-        return -1;
-    }
-    if (args->dither != NULL && ParseOnOff(args->dither, &set.dither) != 0) {
-        error("--dither wants on or off (got %s)", args->dither);
-        return -1;
-    }
-    if (args->colour != NULL && ParseColour(args->colour, &set.colour) != 0) {
-        error("--colour wants console or full (got %s)", args->colour);
-        return -1;
-    }
-    if (args->geometry != NULL && ParseGeometry(args->geometry, &set.geometry) != 0) {
-        error("--geometry wants console, precise or perspective (got %s)", args->geometry);
-        return -1;
+    for (int id = 0; id < SETTING_COUNT; id++) {
+        Format(id, &sSet, sText[id], sizeof(sText[id]));
     }
 
-    Widescreen_Init(set.aspect);
-    Psyz_VideoSetInternalResolution((unsigned)set.resolution);
-    Psyz_VideoSetScaleMode(set.scale);
-    Pacing_Init(set.pace, set.smooth, set.frameRate);
-    DrawDistance_Init(set.drawDistance);
-    Psyz_VideoSetDitheringMode(set.dither ? PSYZ_DITHER_AUTO : PSYZ_DITHER_OFF);
-    Psyz_VideoSetColorDepth(set.colour);
-    if (Psyz_VideoSetGeometry(set.geometry) != 0) {
-        fprintf(stderr, "lsd: geometry: this build has only the console's "
-                        "(LSD_PRECISE_GEOMETRY is off)\n");
+    float ratio;
+    Widescreen_Parse(sSet.aspect, &ratio);
+    Widescreen_Init(ratio);
+    Pacing_Init(sSet.pace, sSet.smooth, sSet.frameRate);
+    DrawDistance_Init(sSet.drawDistance);
+    for (int id = SETTING_RESOLUTION; id < SETTING_COUNT; id++) {
+        if (id != SETTING_PACE && id != SETTING_SMOOTH && id != SETTING_FRAME_RATE &&
+            id != SETTING_DRAW_DISTANCE) {
+            Apply(id);
+        }
+    }
+    return 0;
+}
+
+const char* Settings_Name(SettingId id) {
+    return sInfo[id].name;
+}
+
+const char* Settings_Value(SettingId id) {
+    return sText[id];
+}
+
+const char* Settings_From(SettingId id) {
+    return sFrom[id];
+}
+
+int Settings_NextDream(SettingId id) {
+    return id == SETTING_ASPECT;
+}
+
+int Settings_Accepts(SettingId id, const char* value) {
+    Settings set = sSet;
+    if (sFrom[id] != NULL || Parse(id, value, &set) != 0) {
+        return 0;
+    }
+    return id != SETTING_GEOMETRY || set.geometry == PSYZ_GEOMETRY_CONSOLE || sGeometryBuilt;
+}
+
+int Settings_Set(SettingId id, const char* value) {
+    if (!Settings_Accepts(id, value)) {
+        return -1;
+    }
+    Parse(id, value, &sSet);
+    Format(id, &sSet, sText[id], sizeof(sText[id]));
+    sPending |= 1u << id;
+    return 0;
+}
+
+void Settings_Apply(void) {
+    unsigned pending = sPending;
+    sPending = 0;
+    for (int id = 0; id < SETTING_COUNT; id++) {
+        if (pending & (1u << id)) {
+            Apply(id);
+        }
+    }
+}
+
+int Settings_Save(void) {
+    IniSetting changed[SETTING_COUNT];
+    char file[SETTING_COUNT][24];
+    int count = 0;
+    for (int id = 0; id < SETTING_COUNT; id++) {
+        Format(id, &sFile, file[id], sizeof(file[id]));
+        if (sFrom[id] == NULL && SDL_strcmp(file[id], sText[id]) != 0) {
+            changed[count].name = sInfo[id].name;
+            changed[count].value = sText[id];
+            count++;
+        }
+    }
+    if (count == 0) {
+        return 0;
+    }
+    if (Ini_Update(sPath, changed, count) != 0) {
+        return -1;
+    }
+    for (int id = 0; id < SETTING_COUNT; id++) {
+        if (sFrom[id] == NULL) {
+            Parse(id, sText[id], &sFile);
+        }
     }
     return 0;
 }

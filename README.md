@@ -84,17 +84,20 @@ The keyboard, by default:
 
 To leave a dream early, pause (Escape), hold Tab and press R (SELECT and
 triangle on the console). Escape does not quit: close the window to quit.
+F1 opens the settings menu ("The settings menu", below), as does SETTINGS
+in the title menu, and F4 switches to and from fullscreen.
 
 A gamepad works as a PlayStation pad through SDL's mapping (south button
 cross, east circle, west square, north triangle; shoulders L1/R1,
 triggers L2/R2; Start; the d-pad). The sticks do nothing; the game reads
-a digital pad.
+a digital pad. The Guide button, or both sticks pressed in together,
+opens the settings menu.
 
 ### Changing the keys
 
 The keys live in `controls.ini` in the saves folder (above), written with
-the defaults the first time `lsd` starts. Its first setting picks a
-layout:
+the defaults the first time `lsd` starts; the settings menu changes them
+too. Its first setting picks a layout:
 
 - `layout = modern`: the table above;
 - `layout = classic`: the console's buttons spread over the keyboard, as
@@ -123,7 +126,7 @@ Escape quits only when no button uses it.
 The picture settings live in `settings.ini` in the saves folder, beside
 `controls.ini`, written with the defaults and explained on first start.
 The command line and the environment win over it (the table under
-"Running a release").
+"Running a release"). The settings menu changes them while the game runs.
 
 - `aspect = 4:3` (`--aspect`, `LSD_ASPECT`): the dream's width:height.
   4:3 is the console's; `16:9` (or any wider `W:H`) shows more of the
@@ -191,6 +194,40 @@ Two more settings in the same file change how the dream moves.
   uses your display's refresh rate (120, 144, ...), presented with its
   VSync; a number from 30 to 360 asks for that many. The dream's pace
   stays what `pace` says either way; menus and movies stay at 60.
+
+## The settings menu
+
+SETTINGS in the title menu (under SHAKE), or F1 anywhere, or a gamepad's
+Guide button (or both sticks pressed in together) anywhere, opens a menu
+over the game with the settings of "Picture" and "Pace" and the keyboard's
+keys; F1 or Escape (cross on a pad) closes it. It is drawn in the title
+menu's own font and colours (the font is read from your disc image; without
+it the menu falls back to a plain one), and the title menu doesn't time out
+to the intro while it is open.
+
+- A change shows at once, but for `aspect`, which applies from the next
+  dream (the menus and movies are 4:3 anyway). The window keeps the shape
+  it opened with; drag it to the new shape, or go fullscreen (F4).
+- When the menu closes, what changed is written to `settings.ini` and
+  `controls.ini`, into the lines that set it; comments and everything else
+  in the files stay as they are.
+- A setting given on the command line or in the environment can't be
+  changed there: the menu shows it greyed, with the option that set it, and
+  leaves the file's value alone.
+- While the menu is open the game goes on, but without your keys or pad:
+  a dream's clock keeps running and its music playing (pause the dream
+  with START first to stop it). A key or button still held as the menu
+  closes reaches the game only once it is let go.
+- Keyboard: the arrows move, Space or Enter changes the setting, Escape
+  backs out of a list and closes the menu. The mouse works too. Gamepad:
+  the d-pad moves, circle (east) changes, cross (south) backs out and
+  closes, as in the game; on a slider, circle, then left and right, then
+  circle again.
+- Keys: "Add key" waits for a key and adds it to the button (up to four),
+  "Clear" takes them all off, and picking a layout gives every button that
+  layout's keys. F1, F4 and F6 stay the port's own.
+- The debug server's screenshots (`LSD_DEBUG_PORT`) show the game without
+  the menu.
 
 ## Running a release
 
@@ -278,10 +315,14 @@ git clone https://github.com/brian-oblivion/lsd-port.git
 cd lsd-port
 git submodule update --init decomp psyz
 git -C psyz submodule update --init external/SDL external/cimgui
+git -C psyz/external/cimgui submodule update --init imgui
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build
 ./build/lsd
 ```
+
+The settings menu is Dear ImGui (psyz's `external/cimgui/imgui`), hence
+the C++ compiler.
 
 The options are under "Running a release".
 
