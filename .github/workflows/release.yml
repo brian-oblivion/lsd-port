@@ -63,14 +63,15 @@ jobs:
 
       # The tested build type, stripped. lsd.exe must need nothing but
       # Windows' own DLLs (it links MinGW's runtime statically); the Linux
-      # binary only glibc and libgcc_s, and what SDL opens at run time
+      # binary only glibc (with its loader) and libgcc_s (libstdc++ is linked
+      # in, CMakeLists.txt), and what SDL opens at run time
       # (README, "Running a release").
       - name: Check what the binary needs
         run: |
           if [ "${{ matrix.platform }}" = linux-x86_64 ]; then
             strip build/lsd
             readelf -d build/lsd | grep NEEDED
-            if readelf -d build/lsd | grep NEEDED | grep -v 'libc\.so\|libm\.so\|libgcc_s\.so'; then
+            if readelf -d build/lsd | grep NEEDED | grep -v 'libc\.so\|libm\.so\|libgcc_s\.so\|ld-linux-x86-64\.so'; then
               exit 1
             fi
             glibc=$(objdump -T build/lsd | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)

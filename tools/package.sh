@@ -126,6 +126,12 @@ esac
         echo "- GCC's libgcc and libstdc++: GPL 3 with the GCC Runtime Library Exception,"
         echo "  which leaves the program's own terms as they are"
         ;;
+    *)
+        echo "- GCC's libstdc++, linked statically: GPL 3 with the GCC Runtime Library"
+        echo "  Exception, which leaves the program's own terms as they are"
+        ;;
+    esac
+    case $format in
     appimage)
         echo "- the AppImage runtime (the head of the .AppImage file, not linked"
         echo "  into lsd): AppImage/type2-runtime, MIT, with libfuse 3 (LGPL 2.1),"

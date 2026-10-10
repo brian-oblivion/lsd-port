@@ -52,6 +52,13 @@ Branch `task-22-packaging` (lsd-port), not merged or pushed. `decomp/` and
   with no disc (`APPIMAGE_EXTRACT_AND_RUN=1`), and reports the newest glibc
   symbol and the macOS minimum as annotations, readable through the public
   API.
+- **libstdc++ linked statically on Linux** (`CMakeLists.txt`,
+  `-static-libstdc++` with GCC): since task 21's C++ settings menu the
+  binary needed `libstdc++.so.6`, which the release workflow's "Check what
+  the binary needs" rejects (the first CI run of this branch failed there;
+  v0.2 predates task 21, so the next tag would have too). It now needs
+  glibc (with `ld-linux-x86-64.so.2`, which the check allows) and
+  libgcc_s; `SOURCES.txt` lists libstdc++ for the Linux packages.
 - **Licences**: the AppImage's runtime (the head of the file) statically
   links libfuse 3.15.0 (LGPL 2.1), squashfuse 0.5.2 (BSD 2), zstd, zlib,
   mimalloc and musl; their texts are vendored in
