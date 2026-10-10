@@ -1,5 +1,9 @@
 # Task 25: sound settings (volumes and interpolation)
 
+*Done in the overview session, 2026-10-10 (no handover): the settings in
+`src/settings.c` and the menu's SOUND section, psyz `30200d3`; what was
+found and measured is in `docs/design.md`, "Sound settings".*
+
 The operator wants a sound section in the settings menu:
 
 1. **Volume sliders**: master, music, sound effects and movies, each

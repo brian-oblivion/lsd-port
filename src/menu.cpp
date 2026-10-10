@@ -397,15 +397,44 @@ void Combo(SettingId id, const char* label, const Choice* choices, int count,
     Note(id, note);
 }
 
+// Left and right (the arrows, the d-pad or the left stick) move the slider
+// under the cursor by step, without first activating it as Dear ImGui would
+// have (Space, or circle). Its keys are kept from Dear ImGui's navigation.
+int Nudge(ImGuiID id, int step) {
+    static const ImGuiKey keys[][3] = {
+        {ImGuiKey_LeftArrow, ImGuiKey_GamepadDpadLeft, ImGuiKey_GamepadLStickLeft},
+        {ImGuiKey_RightArrow, ImGuiKey_GamepadDpadRight, ImGuiKey_GamepadLStickRight},
+    };
+    int by = 0;
+    for (int side = 0; side < 2; side++) {
+        for (ImGuiKey key : keys[side]) {
+            ImGui::SetKeyOwner(key, id);
+            if (ImGui::IsKeyPressed(key, ImGuiInputFlags_Repeat, id)) {
+                by += side ? step : -step;
+            }
+        }
+    }
+    return by;
+}
+
 void Slider(SettingId id, const char* label, int min, int max, const char* format,
-            const char* note = nullptr) {
+            const char* note = nullptr, int step = 1) {
     int value = atoi(Settings_Value(id));
     ImGui::PushID(id);
     bool focused = HasCursor("##");
     Label(label, focused);
     ImGui::BeginDisabled(Settings_From(id) != nullptr);
     ImGui::PushStyleColor(ImGuiCol_Text, focused ? kYellow : kGrey);
-    if (ImGui::SliderInt("##", &value, min, max, format, ImGuiSliderFlags_AlwaysClamp)) {
+    bool changed =
+        ImGui::SliderInt("##", &value, min, max, format, ImGuiSliderFlags_AlwaysClamp);
+    if (focused && !ImGui::IsItemActive() && Settings_From(id) == nullptr) {
+        int by = Nudge(ImGui::GetItemID(), step);
+        if (by != 0) {
+            value = SDL_clamp((value + by) / step * step, min, max);
+            changed = true;
+        }
+    }
+    if (changed) {
         char text[16];
         SDL_snprintf(text, sizeof(text), "%d", value);
         Settings_Set(id, text);
@@ -507,6 +536,22 @@ void DreamSection() {
           smooth ? nullptr : "with smooth on");
     Combo(SETTING_DRAW_DISTANCE, "DRAW DISTANCE", distances, SDL_arraysize(distances));
     Combo(SETTING_FOG, "FOG", fogs, SDL_arraysize(fogs));
+}
+
+void SoundSection() {
+    static const Choice interpolations[] = {
+        {"console", "console", "the PS1's, soft"},
+        {"cubic", "cubic", "brighter"},
+        {"sinc", "sinc", "brightest"},
+    };
+
+    Heading("SOUND");
+    Slider(SETTING_VOLUME, "VOLUME", 0, 100, "%d%%", nullptr, 5);
+    Slider(SETTING_MUSIC_VOLUME, "MUSIC", 0, 100, "%d%%", nullptr, 5);
+    Slider(SETTING_EFFECTS_VOLUME, "EFFECTS", 0, 100, "%d%%", nullptr, 5);
+    Slider(SETTING_MOVIE_VOLUME, "MOVIES", 0, 100, "%d%%", nullptr, 5);
+    Combo(SETTING_INTERPOLATION, "INTERPOLATION", interpolations,
+          SDL_arraysize(interpolations));
 }
 
 void KeysText(int b, char* out, size_t size) {
@@ -628,6 +673,7 @@ void DrawMenu() {
     }
     PictureSection();
     DreamSection();
+    SoundSection();
     KeyboardSection();
     ImGui::Spacing();
     if (ImGui::Button("CLOSE")) {

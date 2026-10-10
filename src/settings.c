@@ -11,11 +11,23 @@
 //   dither = on             the console's 4x4 dither pattern, or off
 //   colour = console        console (15-bit) | full (24-bit, no dither)
 //   geometry = console      console | precise | perspective
+//   volume = 100            the whole sound, 0 to 100 %
+//   music_volume = 100      the music, 0 to 100 %
+//   effects_volume = 100    the sound effects, 0 to 100 %
+//   movie_volume = 100      the movies' sound, 0 to 100 %
+//   interpolation = console console (gaussian) | cubic | sinc
 // The command line (--aspect, --resolution, --scale, --pace, --smooth,
-// --frame-rate, --draw-distance, --fog, --dither, --colour, --geometry) and
-// the environment (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE,
-// LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_FOG, LSD_DITHER,
-// LSD_COLOUR, LSD_GEOMETRY) win over the file.
+// --frame-rate, --draw-distance, --fog, --dither, --colour, --geometry,
+// --volume, --music-volume, --effects-volume, --movie-volume,
+// --interpolation) and the environment (LSD_ASPECT, LSD_RESOLUTION,
+// LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE, LSD_DRAW_DISTANCE,
+// LSD_FOG, LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY, LSD_VOLUME,
+// LSD_MUSIC_VOLUME, LSD_EFFECTS_VOLUME, LSD_MOVIE_VOLUME,
+// LSD_INTERPOLATION) win over the file.
+//
+// The volumes and the interpolation change what is heard only (psyz's
+// Psyz_SpuSetGroupGain and the like): the SPU's registers, envelopes and
+// capture buffers, which the game can read, stay the console's.
 //
 // The settings menu (src/menu.cpp) changes them while the game runs and
 // writes those it changed back into the file (Ini_Update), leaving the
@@ -47,11 +59,13 @@ typedef struct {
     int dither;
     PsyzColorDepth colour;
     PsyzGeometry geometry;
+    int volume[4]; // whole, music, effects, movies: 0 to 100
+    PsyzSpuInterp interpolation;
 } Settings;
 
 static const Settings sDefaults = {
     "4:3", 1, PSYZ_SCALE_SHARP, 14, 1, PACING_FRAME_RATE_CONSOLE, 1, 0, 1,
-    PSYZ_COLOR_DEPTH_15, PSYZ_GEOMETRY_CONSOLE,
+    PSYZ_COLOR_DEPTH_15, PSYZ_GEOMETRY_CONSOLE, {100, 100, 100, 100}, PSYZ_SPU_INTERP_GAUSS,
 };
 
 #define STR_(x) #x
@@ -78,6 +92,11 @@ static const struct {
     {"dither", "--dither", "LSD_DITHER", "on or off"},
     {"colour", "--colour", "LSD_COLOUR", "console or full"},
     {"geometry", "--geometry", "LSD_GEOMETRY", "console, precise or perspective"},
+    {"volume", "--volume", "LSD_VOLUME", "0 to 100"},
+    {"music_volume", "--music-volume", "LSD_MUSIC_VOLUME", "0 to 100"},
+    {"effects_volume", "--effects-volume", "LSD_EFFECTS_VOLUME", "0 to 100"},
+    {"movie_volume", "--movie-volume", "LSD_MOVIE_VOLUME", "0 to 100"},
+    {"interpolation", "--interpolation", "LSD_INTERPOLATION", "console, cubic or sinc"},
 };
 
 static const struct {
@@ -94,10 +113,12 @@ static const struct {
 static const char sDefaultFile[] =
     "# LSD: Dream Emulator settings. The command line (--aspect, --resolution,\n"
     "# --scale, --pace, --smooth, --frame-rate, --draw-distance, --fog,\n"
-    "# --dither, --colour, --geometry) and the environment (LSD_ASPECT,\n"
-    "# LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH, LSD_FRAME_RATE,\n"
-    "# LSD_DRAW_DISTANCE, LSD_FOG, LSD_DITHER, LSD_COLOUR, LSD_GEOMETRY) win\n"
-    "# over this file.\n"
+    "# --dither, --colour, --geometry, --volume, --music-volume,\n"
+    "# --effects-volume, --movie-volume, --interpolation) and the environment\n"
+    "# (LSD_ASPECT, LSD_RESOLUTION, LSD_SCALE, LSD_PACE, LSD_SMOOTH,\n"
+    "# LSD_FRAME_RATE, LSD_DRAW_DISTANCE, LSD_FOG, LSD_DITHER, LSD_COLOUR,\n"
+    "# LSD_GEOMETRY, LSD_VOLUME, LSD_MUSIC_VOLUME, LSD_EFFECTS_VOLUME,\n"
+    "# LSD_MOVIE_VOLUME, LSD_INTERPOLATION) win over this file.\n"
     "# Delete it to get the defaults back.\n"
     "\n"
     "# The dream's width:height. 4:3 is the console's picture; a wider one,\n"
@@ -149,7 +170,20 @@ static const char sDefaultFile[] =
     "# so the ground wobbles as the view moves and textures bend near it.\n"
     "# precise: the corners where they fall between pixels. perspective:\n"
     "# precise, and the textures in perspective.\n"
-    "geometry = console\n";
+    "geometry = console\n"
+    "\n"
+    "# Volumes, 0 to 100 (%): all the sound, then the music, the sound\n"
+    "# effects and the movies' sound within it. 100 is the console's.\n"
+    "volume = 100\n"
+    "music_volume = 100\n"
+    "effects_volume = 100\n"
+    "movie_volume = 100\n"
+    "\n"
+    "# How the sound's samples are smoothed as they play at each note's pitch:\n"
+    "#   console  the PS1's gaussian, soft and a little muffled\n"
+    "#   cubic    brighter, close to the original samples\n"
+    "#   sinc     the brightest and cleanest\n"
+    "interpolation = console\n";
 
 static int ParseResolution(const char* s, int* out) {
     char* end;
@@ -271,6 +305,28 @@ static int ParseFog(const char* s, int* out) {
     return 0;
 }
 
+static int ParseVolume(const char* s, int* out) {
+    char* end;
+    long n = strtol(s, &end, 10);
+    if (*s == '\0' || *end != '\0' || n < 0 || n > 100) {
+        return -1;
+    }
+    *out = (int)n;
+    return 0;
+}
+
+static const char* const sInterpolations[] = {"console", "cubic", "sinc"};
+
+static int ParseInterpolation(const char* s, PsyzSpuInterp* out) {
+    for (int i = 0; i < (int)SDL_arraysize(sInterpolations); i++) {
+        if (SDL_strcasecmp(s, sInterpolations[i]) == 0) {
+            *out = (PsyzSpuInterp)i;
+            return 0;
+        }
+    }
+    return -1;
+}
+
 // Parses one setting into set. Returns 0, or -1 if malformed.
 static int Parse(SettingId id, const char* s, Settings* set) {
     switch (id) {
@@ -296,6 +352,13 @@ static int Parse(SettingId id, const char* s, Settings* set) {
         return ParseColour(s, &set->colour);
     case SETTING_GEOMETRY:
         return ParseGeometry(s, &set->geometry);
+    case SETTING_VOLUME:
+    case SETTING_MUSIC_VOLUME:
+    case SETTING_EFFECTS_VOLUME:
+    case SETTING_MOVIE_VOLUME:
+        return ParseVolume(s, &set->volume[id - SETTING_VOLUME]);
+    case SETTING_INTERPOLATION:
+        return ParseInterpolation(s, &set->interpolation);
     default:
         return -1;
     }
@@ -347,6 +410,15 @@ static void Format(SettingId id, const Settings* set, char* out, size_t size) {
     case SETTING_GEOMETRY:
         SDL_strlcpy(out, sGeometries[set->geometry], size);
         break;
+    case SETTING_VOLUME:
+    case SETTING_MUSIC_VOLUME:
+    case SETTING_EFFECTS_VOLUME:
+    case SETTING_MOVIE_VOLUME:
+        SDL_snprintf(out, size, "%d", set->volume[id - SETTING_VOLUME]);
+        break;
+    case SETTING_INTERPOLATION:
+        SDL_strlcpy(out, sInterpolations[set->interpolation], size);
+        break;
     default:
         out[0] = '\0';
         break;
@@ -388,6 +460,13 @@ static char sText[SETTING_COUNT][24]; // sSet's, formatted
 static unsigned sPending;             // settings changed but not yet applied
 static char* sPath;                   // settings.ini
 
+// A volume's gain: the square of its fraction, so that 50 sounds about half
+// as loud (-12 dB) rather than hardly quieter (-6 dB).
+static float Gain(int volume) {
+    float f = volume / 100.0f;
+    return f * f;
+}
+
 static void Apply(SettingId id) {
     float ratio;
     switch (id) {
@@ -423,6 +502,21 @@ static void Apply(SettingId id) {
             fprintf(stderr, "lsd: geometry: this build has only the console's "
                             "(LSD_PRECISE_GEOMETRY is off)\n");
         }
+        break;
+    case SETTING_VOLUME:
+        Psyz_SpuSetMasterGain(Gain(sSet.volume[0]));
+        break;
+    case SETTING_MUSIC_VOLUME:
+        Psyz_SpuSetGroupGain(PSYZ_SPU_GROUP_SEQ, Gain(sSet.volume[1]));
+        break;
+    case SETTING_EFFECTS_VOLUME:
+        Psyz_SpuSetGroupGain(PSYZ_SPU_GROUP_SE, Gain(sSet.volume[2]));
+        break;
+    case SETTING_MOVIE_VOLUME:
+        Psyz_SpuSetCdGain(Gain(sSet.volume[3]));
+        break;
+    case SETTING_INTERPOLATION:
+        Psyz_SpuSetInterpolation(sSet.interpolation);
         break;
     default:
         break;

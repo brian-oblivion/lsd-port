@@ -49,7 +49,7 @@ cp LICENSE "$dir/LICENSE.txt"
     echo "LSD: Dream Emulator, native port ($name)"
     echo "https://github.com/brian-oblivion/lsd-port"
     echo
-    for section in "The game" "Saves" "Controls" "Picture" "Pace" "The settings menu" "Running a release" "Known differences from the console"; do
+    for section in "The game" "Saves" "Controls" "Picture" "Pace" "Sound" "The settings menu" "Running a release" "Known differences from the console"; do
         awk -v s="## $section" '$0 == s {on = 1; print; next} /^## / {on = 0} on' README.md
     done
 } > "$dir/README.txt"

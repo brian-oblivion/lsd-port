@@ -14,6 +14,11 @@ typedef enum {
     SETTING_DITHER,
     SETTING_COLOUR,
     SETTING_GEOMETRY,
+    SETTING_VOLUME,
+    SETTING_MUSIC_VOLUME,
+    SETTING_EFFECTS_VOLUME,
+    SETTING_MOVIE_VOLUME,
+    SETTING_INTERPOLATION,
     SETTING_COUNT
 } SettingId;
 
@@ -32,7 +37,8 @@ void Settings_FromEnv(SettingArgs* args);
 int Settings_FromArg(SettingArgs* args, const char* option, const char* value);
 
 // The settings: aspect, resolution, scale, pace, smooth, frame_rate,
-// draw_distance, fog, dither, colour and geometry, from the command line or
+// draw_distance, fog, dither, colour, geometry, volume, music_volume,
+// effects_volume, movie_volume and interpolation, from the command line or
 // environment
 // (args), else from <savesDir>settings.ini (written with the defaults when
 // missing), else the defaults. Applies them to psyz and the dream

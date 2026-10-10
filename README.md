@@ -217,12 +217,33 @@ Two more settings in the same file change how the dream moves.
   VSync; a number from 30 to 360 asks for that many. The dream's pace
   stays what `pace` says either way; menus and movies stay at 60.
 
+## Sound
+
+More settings in the same file. At their defaults the sound is the
+console's; none of them changes what the game does, only what you hear.
+
+- `volume = 100` (`--volume N`, `LSD_VOLUME`): all the sound, 0 to 100.
+- `music_volume`, `effects_volume`, `movie_volume` (`--music-volume`,
+  `--effects-volume`, `--movie-volume`, `LSD_MUSIC_VOLUME`, ...): the
+  dreams' and menus' music, the sound effects (footsteps, the menus'
+  cursor, links and the like), and the movies' sound, each 0 to 100 and
+  within `volume`. 50 sounds about half as loud; 0 is silent. A
+  sequence's echo follows its volume.
+- `interpolation = console` (`--interpolation`, `LSD_INTERPOLATION`): how
+  the sound's samples are smoothed as each plays at its note's pitch.
+  `console` is the PS1's gaussian, which takes the edge off the highs
+  (by about 4 dB at a quarter of a sample's rate, 10 dB near the top);
+  `cubic` keeps most of them, and `sinc` keeps nearly all, so both
+  sound brighter. Many PS1 samples were made to sound right through the
+  gaussian, so brighter isn't always better: try them. Movies' sound is
+  the same with each.
+
 ## The settings menu
 
 SETTINGS in the title menu (under SHAKE), or F1 anywhere, or a gamepad's
 Guide button (or both sticks pressed in together) anywhere, opens a menu
-over the game with the settings of "Picture" and "Pace" and the keyboard's
-keys; F1 or Escape (cross on a pad) closes it. It is drawn in the title
+over the game with the settings of "Picture", "Pace" and "Sound" and the
+keyboard's keys; F1 or Escape (cross on a pad) closes it. It is drawn in the title
 menu's own font and colours (the font is read from your disc image; without
 it the menu falls back to a plain one), and the title menu doesn't time out
 to the intro while it is open.
@@ -243,8 +264,8 @@ to the intro while it is open.
 - Keyboard: the arrows move, Space or Enter changes the setting, Escape
   backs out of a list and closes the menu. The mouse works too. Gamepad:
   the d-pad moves, circle (east) changes, cross (south) backs out and
-  closes, as in the game; on a slider, circle, then left and right, then
-  circle again.
+  closes, as in the game. On a slider, left and right (arrows, d-pad or
+  the left stick) move it; the volumes go in steps of 5.
 - Keys: "Add key" waits for a key and adds it to the button (up to four),
   "Clear" takes them all off, and picking a layout gives every button that
   layout's keys. F1, F4 and F6 stay the port's own.

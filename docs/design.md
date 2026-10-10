@@ -1053,3 +1053,91 @@ buffer).
   and day 22 at 4:3 and 16:9 with `soft`: the same STATE lines as
   `console`. Frame time (16:9, machine at load 4): 321 µs standing and
   355 turning with `console`, 474 and 509 with `soft`.
+
+## Sound settings (task 25, 2026-10-10)
+
+`volume`, `music_volume`, `effects_volume`, `movie_volume` (0 to 100) and
+`interpolation = console | cubic | sinc`, in `settings.ini`, on the
+command line, in the environment and in the menu's SOUND section. At
+their defaults the mix is the console's, bit for bit.
+
+### Where the volumes apply
+
+The game sets its own volumes (`SsSetMVol` once, `SsSeqSetVol` for the
+music and its fades, a volume per `SsUtKeyOn` for an effect, the main and
+CD volumes for a movie in `SetupCdStreamAudio`), and libsnd keeps them in
+its state and the SPU's registers. Scaling those calls would change what
+the game reads back (and libsnd's voice allocation reads ENVX), so the
+settings scale the mix in psyz instead, after everything the game can see:
+
+- Each voice has a group, taken at key-on. libsnd's `_SsVmFlush`, the one
+  place libsnd keys voices on, tells psyz each keyed voice's group before
+  writing KON: a voice whose `seq_sep_no` is `0x21` (`SsUtKeyOn`,
+  `SsUtKeyOnV`, `SpuVmSeKeyOn`) is a sound effect, any other a sequence's.
+  psyz latches it at the KON write (`Psyz_SpuSetVoiceGroup`), so a voice
+  still releasing its last note keeps that note's group until it is keyed
+  again.
+- In `spu_tick`, a voice's sample is scaled by its group's gain after its
+  envelope, and so before the voice volumes and the reverb send: a
+  sequence's echo follows the music. ENVX and the capture buffers (voices
+  1 and 3) keep the unscaled sample. The reverb's work area in SPU RAM
+  does take the scaled input; LSD never reads it.
+- CD audio and XA (only the movies here: `src/graphics/movie_player.c` is
+  the CD stream's one user) by the movie gain before `cd_vol`; the capture
+  buffers keep the CD's own samples.
+- The whole mix by the master gain after the main volume and its
+  clipping, so lowering it never changes what clips.
+
+The gains are Q15 (1.0 = 0x8000, where `(s * 0x8000) >> 15` is `s`, so
+the default mix is unchanged) and ramp at 64 a sample, 1.0 in 512 samples
+(12 ms), so a slider dragged doesn't click. The settings give the square of
+the fraction (50 → 0.25, -12 dB), which sounds about half as loud.
+
+What is in which group, counted over the title menu and a walk in a dream
+(day 1): the title menu's cursor and selection sounds are all effects; in
+the dream the music is a sequence's, and the footsteps
+(`DreamSys__SoundCueCallback`, program 9 every walking tick) and the sounds
+placed about the world (StyleLayer's cues) are effects. The game keys no
+voice outside libsnd (no SpuSetKey in its code). Muting each in turn
+(raw disk audio, RMS over a segment):
+
+| | intro movie | title menu | dream, walking |
+|---|---|---|---|
+| defaults | -19.5 dB | -8.1 dB | -22.0 dB |
+| music 0 | -19.5 | -8.1 | -22.6 |
+| effects 0 | -19.6 | silent | -30.8 |
+| movies 0 | silent | -8.0 | -22.0 |
+| volume 0 | silent | silent | silent |
+
+(The music alone, -30.8, and the effects alone, -22.6, add up to the
+-22.0 of both.)
+
+### Interpolation
+
+The SPU resamples each voice to its pitch through a 4-tap gaussian, a
+low-pass: averaged over the phase, -0.6 dB at a tenth of the sample's own
+rate, -4 dB at a quarter, -10.5 at 0.4 and -15 at the Nyquist. `cubic` is
+Catmull-Rom over the same four samples and phase (-0.5 dB at a quarter,
+-4 at the Nyquist); `sinc` a Lanczos window (a = 4) over the last eight
+(flat to 0.35 of the rate, -4 at the Nyquist), two samples later than the
+gaussian. Both are tables of 256 phases in Q14, made when first chosen.
+Each voice keeps its last eight decoded samples beside the gaussian's
+window for them. The capture buffers of voices 1 and 3 keep the
+gaussian's sample whichever is heard.
+
+Measured on the same title-menu and dream segments (power by band
+against the whole):
+
+| band (Hz) | 0-500 | 500-2k | 2k-4k | 4k-8k | 8k-12k | 12k-20k |
+|---|---|---|---|---|---|---|
+| dream, console | -0.4 | -11.4 | -17.7 | -22.9 | -29.8 | -38.4 |
+| dream, cubic | -0.6 | -10.4 | -16.0 | -21.7 | -26.9 | -32.8 |
+| dream, sinc | -0.6 | -10.1 | -15.4 | -21.6 | -27.0 | -32.9 |
+
+The level overall moves by 0.2 dB. The cost, 24 voices playing
+(x86_64, -O2): 7.2 ms a second of sound for the gaussian, 7.8 for cubic,
+10.4 for sinc. Many PS1 samples were made to sound right through the
+gaussian, so the choice is the player's; DuckStation uses the gaussian.
+
+The PSP's SAS backend takes the calls and ignores them: it mixes and
+interpolates on the Media Engine.
