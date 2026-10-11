@@ -14,6 +14,16 @@ extern "C" {
 // count in *size, or NULL when the image or the file can't be read.
 void* Disc_ReadFile(const char* cuePath, const char* path, size_t* size);
 
+// The disc image held open, for reads by sector (logical block address,
+// from 0 at the start of the data track; a CdlLOC's minus 150): the same
+// image and handle of its own as Disc_ReadFile. NULL when it can't be
+// opened.
+typedef struct Disc Disc;
+Disc* Disc_Open(const char* cuePath);
+// size bytes from sector lba on into out. Returns 0, or -1.
+int Disc_Read(Disc* disc, unsigned lba, void* out, size_t size);
+void Disc_Close(Disc* disc);
+
 #ifdef __cplusplus
 }
 #endif

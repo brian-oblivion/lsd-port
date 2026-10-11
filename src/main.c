@@ -6,6 +6,7 @@
 // (0 after --frames N).
 
 #include "controls.h"
+#include "far_map.h"
 #include "menu.h"
 #include "settings.h"
 #include "title_settings.h"
@@ -232,6 +233,10 @@ int main(int argc, char** argv) {
         return 2;
     }
     SetUpControls(sSavesDir);
+    // The map past the chunks the game keeps loaded (src/far_map.c), read from
+    // the disc image by the port; before the settings, whose soft fog wraps
+    // the same methods after it.
+    FarMap_Init(disc);
     if (SetUpSettings(sSavesDir, &settings, StartError) != 0) {
         return 2;
     }

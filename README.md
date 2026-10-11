@@ -161,10 +161,11 @@ The command line and the environment win over it (the table under
 - `draw_distance = 1` (`--draw-distance`, `LSD_DRAW_DISTANCE`): how far
   the dream shows before it fades into the fog, 1 to 4. On some days a
   stage's fog closes in a few steps ahead; N moves it N times further
-  away, but never past the clearest fog any stage has, so the clearest
-  ones stay as they are. Far out the ground then ends at a straight edge
-  against the sky, as it does on those stages on the console: the game
-  draws only so many squares of ground ahead. 1 is the console's.
+  away, but never past the clearest fog any stage has. The game draws
+  only 20 squares of ground ahead, so on the console the clearest stages
+  end at a straight edge against the sky; above 1 the port draws on to 30
+  squares, as far as the fog leaves anything, loading the map past what
+  the game holds itself. 1 is the console's.
 - `fog = console` (`--fog`, `LSD_FOG`): `soft` keeps the edges of what the
   dream draws in the fog. The game draws the ground and buildings only in
   a block of squares ahead of you, and as you turn or walk it adds rows at

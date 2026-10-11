@@ -9,4 +9,7 @@ void SoftFog_Init(int on);
 // The same while the game runs; in a dream, at once.
 void SoftFog_Set(int on);
 
+// Whether it is shaping the dream being drawn.
+int SoftFog_On(void);
+
 #endif

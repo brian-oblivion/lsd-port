@@ -61,6 +61,14 @@ static void FarDayTaskOnDeinit(DayTask* self) {
     sDayTaskOnDeinit(self);
 }
 
+int DrawDistance_Scale(void) {
+    return sScale;
+}
+
+int DrawDistance_FogNear(void) {
+    return sFogViewport != NULL ? Further(sGameFogNear) : 0;
+}
+
 void DrawDistance_Set(int scale) {
     sScale = scale;
     if (sFogViewport != NULL) {

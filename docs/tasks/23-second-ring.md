@@ -1,5 +1,10 @@
 # Task 23: a second ring of map chunks
 
+*Done in the overview session, 2026-10-11 (no handover): the far map,
+`src/far_map.c`, chunks past the game's seven loaded and drawn by the
+port, the game's footprint untouched; what was found and measured is in
+`docs/design.md`, "Far map".*
+
 StageMap keeps the player's chunk and its six neighbours loaded (the
 ring) and draws a 20 x 20-cell window of cells from them (the
 footprint). Two things end there:

@@ -199,10 +199,18 @@ answered in that list; the operator approved it on 2026-10-02.
     4096; about a third of the days on the six stages without a fixed
     style) cull before the map's footprint, 20 cells ahead; past that the
     footprint's straight edge ends the view, as on the console's clear
-    stages. Drawing beyond it needs a wider footprint and a second ring of
-    map chunks (StageMap's tracking rewritten), not done. Lockstep shows
-    identical state at 1 and 4. `src/draw_distance.c`, `docs/design.md`
-    ("Draw distance").
+    stages. Since task 23 the port draws past it, to 30 cells, from map
+    chunks it loads itself (`far-map`, below). Lockstep shows identical
+    state at 1 and 4. `src/draw_distance.c`, `docs/design.md` ("Draw
+    distance").
+  - `far-map` (task 23): every chunk within 37 cells of the player that
+    the StageMap's seven slots don't hold is read from the disc image by
+    the port and drawn as the game draws its own, the StageMap's slots,
+    window and commands untouched. It closes the 16:9 side gap near a
+    chunk's corner, takes `draw_distance` above 1 to 30 cells and soft
+    fog's circle with it. On with 16:9, a draw distance above 1 or `soft`.
+    Lockstep shows identical state. `src/far_map.c`, `docs/design.md`
+    ("Far map").
   - `soft-fog` (task 24): `fog = soft` (`--fog`, `LSD_FOG`; default
     `console`) keeps the edges of the StageMap's window in the fog where
     they are in view, and dissolves cells it switches on in from the fog
