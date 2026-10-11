@@ -1,5 +1,6 @@
 // Disc_ReadFile: one file of the disc image, for the port's own use (the
-// settings menu's font). The .cue's first FILE names the image, its first
+// settings menu's font); Disc_Open and Disc_Read: sectors by their position,
+// for files whose position the game has already found (src/far_map.c). The .cue's first FILE names the image, its first
 // TRACK the sector layout: MODE2/2352 (the game's) keeps a sector's 2048
 // bytes of data after 24 bytes of sync, header and subheader, MODE1/2352
 // after 16; MODE1/2048 is the data alone. The file system is ISO 9660: the
@@ -14,11 +15,12 @@
 
 #define SECTOR_DATA 2048
 
-typedef struct {
+struct Disc {
     SDL_IOStream* io;
     int sectorSize; // bytes a sector takes in the image
     int dataOffset; // where its 2048 bytes of data start
-} Image;
+};
+typedef Disc Image;
 
 static unsigned Le32(const unsigned char* p) {
     return p[0] | (unsigned)p[1] << 8 | (unsigned)p[2] << 16 | (unsigned)p[3] << 24;
@@ -152,4 +154,33 @@ void* Disc_ReadFile(const char* cuePath, const char* path, size_t* size) {
         *size = len;
     }
     return data;
+}
+
+Disc* Disc_Open(const char* cuePath) {
+    Disc* disc = SDL_malloc(sizeof(Disc));
+    if (disc != NULL && (cuePath == NULL || OpenImage(cuePath, disc) != 0)) {
+        SDL_free(disc);
+        disc = NULL;
+    }
+    return disc;
+}
+
+int Disc_Read(Disc* disc, unsigned lba, void* out, size_t size) {
+    unsigned char sector[SECTOR_DATA];
+    unsigned char* to = out;
+    for (size_t done = 0; done < size; done += SECTOR_DATA, lba++) {
+        size_t n = size - done < SECTOR_DATA ? size - done : SECTOR_DATA;
+        if (!ReadSector(disc, lba, sector)) {
+            return -1;
+        }
+        memcpy(to + done, sector, n);
+    }
+    return 0;
+}
+
+void Disc_Close(Disc* disc) {
+    if (disc != NULL) {
+        SDL_CloseIO(disc->io);
+        SDL_free(disc);
+    }
 }

@@ -12,4 +12,8 @@ void Widescreen_Init(float ratio);
 // The ratio from the next dream on, while the game runs.
 void Widescreen_Set(float ratio);
 
+// How much wider than 4:3 the dream being drawn is: 1 at 4:3 and outside a
+// dream.
+float Widescreen_Stretch(void);
+
 #endif

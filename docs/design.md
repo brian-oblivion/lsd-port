@@ -458,9 +458,9 @@ the rest 0 to 2.
 `SetFogNear` puts -320 * fogNear / h into DQA, a 16-bit register; at the
 dream's h (266) fogNear above 27238 wraps it. 26624 is the largest the game
 itself uses, so the farthest setting looks like its clearest stages: the
-ground runs to the footprint's edge, partly fogged. Drawing beyond that
-edge means a wider footprint (handover, "The footprint"), which is not
-cheap.
+ground runs to the footprint's edge, partly fogged. Since task 23 the port
+draws past that edge with its own chunks ("Far map", below), to 30 cells
+above 1.
 
 ### Measured
 
@@ -510,8 +510,9 @@ draw distance; above 1 more of it shows.
 
 ### The widening
 
-`src/widescreen.c` wraps `gStageMapMethods.refreshFootprint` (called
-every tick by UpdateFootprintTracking) when the aspect is wider than 4:3:
+`src/widescreen.c` wrapped `gStageMapMethods.refreshFootprint` (called
+every tick by UpdateFootprintTracking) when the aspect is wider than 4:3
+(since task 23 `src/far_map.c` does, below):
 after the game's own refresh it shows every cell of the seven loaded
 chunks that lies within the window's extent along its ahead axis (so the
 horizon stays where it is) and in the wider view cone, at this tick's yaw
@@ -520,12 +521,11 @@ other), with a margin of about two cells for models that reach past
 their cell. Before the next refresh it hides them again; a slot whose
 chunk changed in between is left alone (the reload reset its cells).
 
-What it can't do: show a cell that isn't loaded. The ring is the
+What it couldn't do: show a cell that isn't loaded. The ring is the
 player's chunk and six neighbours; the rows before and after it cover
 only x -10 to 30 cells of the centre chunk's 0 to 20. Near a chunk's
 corner, looking diagonally, the cone still reaches past them at 8.4
-cells. Going further needs a second ring (task 14, "The footprint": 19
-chunks, their loads timed ahead), not attempted.
+cells. Task 23 loads the chunks past the ring itself ("Far map").
 
 At 16:9 the centre can now show a little more than the console's 4:3:
 at headings off an axis the window's lateral side also crosses the
@@ -955,18 +955,20 @@ ground were catching up with the view. So with `soft` on, after each refresh,
 every loaded cell with something in it within 21 cells of the player is
 shown when it is in the view cone widened by 26 degrees a side (about four
 ticks of turning) or within 3 cells, and every cell further than 21 is
-hidden, whatever the game's window says. A turn then brings in cells that
+hidden, whatever the game's window says (since task 23 the radius is a
+cell past `FarMap_Reach`: 21, or 31 with a draw distance above 1, and the
+chunks those cells come from include the far map's). A turn then brings in cells that
 were drawn already, and the edge is a circle that does not move as the view
 turns; the fog's edges are hidden cells in view (beyond the circle) and,
 inside it, cells of no loaded chunk, where the ring of chunks ends. Drawing
-only, as widescreen.c's extra cells (GsDOFF; the cells shown are hidden
+only, as far_map.c's extra cells (GsDOFF; the cells shown are hidden
 again before the next refresh). Cells come in now only as the player walks
 toward them, or where the ring of loaded chunks ends near the player
-(task 23's second ring would push that out).
+(task 23's far map pushed that out of the circle).
 
 ### The fog
 
-Each tick, after the StageMap's refresh (wrapped after widescreen.c's, so
+Each tick, after the StageMap's refresh (wrapped after far_map.c's, so
 its extra cells count), every cell of the loaded chunks is looked at:
 shown or not, and whether it has anything to draw. A hidden cell with
 something in it, ahead of the player and in the view cone (with 1.5 cells
@@ -1141,3 +1143,129 @@ gaussian, so the choice is the player's; DuckStation uses the gaussian.
 
 The PSP's SAS backend takes the calls and ignores them: it mixes and
 interpolates on the Media Engine.
+
+## Far map (task 23, 2026-10-11)
+
+The map past the seven chunks the StageMap keeps loaded, loaded and drawn
+by the port: `src/far_map.c`. It closes the gap at the side of a 16:9 view
+near a chunk's corner (task 17), and with `draw_distance` above 1 it draws
+the ground to 30 cells ahead instead of the game's 20 (task 14). On at
+16:9 (or wider), with a draw distance above 1, or with `fog = soft`; at
+4:3, 1 and `console` nothing is loaded or drawn. Stages whose chunks are
+stacked in a column (`isVertical`) are left alone.
+
+### The game's footprint stays the game's
+
+Task 14 estimated a second ring inside StageMap: its slot, neighbour and
+reslot tables for 19 chunks, rect splitting into nine pieces, its own
+tracking. None of that was needed. The StageMap's slots, its window
+(`rects`), its tracking and the commands it hands cells
+(`ApplyToSenderFootprint` and `DispatchToRectCells`, over their own 3 x 3
+window around the sender and the game's slots) are untouched; the far
+chunks are the port's, in no list of the game's.
+
+- **Which**: at each refresh of the game's window (`refreshFootprint`,
+  wrapped first, so that soft fog's wrapper sees them), every chunk of the
+  stage's grid with a cell within 37 cells of the player that no slot of
+  the game's has populated. Its corner is worked out from the game's
+  centre slot (odd rows half a chunk to -x, as
+  `ComputeCellWorldOffsets`), and its coordinate hangs under that slot's.
+  When the game's slot has the same chunk populated, the far one steps
+  aside; while the game's is still loading, the far one is drawn.
+- **Loading**: the record the StageMap's `chunkFileFn` gives for the chunk
+  (the game resolved its disc position at boot), read through a handle of
+  the port's own on the image (`Disc_Open`, `Disc_Read`), so psyz's libcd
+  and the game's CD driver never see it. Only the header block (45912
+  bytes: placements and the TMD) is read, synchronously, at the refresh
+  that first wants the chunk: 0.05 to 0.4 ms on average, 2 ms at most
+  (x86_64, the file cache warm or not). The data block (the chunk's
+  objects, which the game spawns on `STAGEMAP_EVENT_SLOT_DATA_READY`) is
+  not read. 40 chunks are kept, the least recently wanted dropped.
+- **Cells**: as `PopulateSlotCells` and `PlacementGrid__ResolveEntry`
+  build them (`GsMapModelingData`, `GsLinkObject4`, the placement's
+  position, quarter-turn and chain), in memory of the port's, not the
+  game's pool: GridCells with GridCell's method table, so
+  `Viewport__DrawNode` draws them and the code that walks cells
+  (`FarMap_Chunks`: the game's slots, then the far chunks) takes them as
+  they are.
+
+Why 37: a model of the window against the 16:9 cone over 2000 random
+positions and headings (scratch): with the game's seven chunks a gap in
+73 % of cases, the nearest at 10.8 cells (task 17's model: 80 %, 8.4);
+with every chunk within 33 cells, 4 % of cases still had one, at 33.7
+cells and more (the window's far corners looking diagonally); within 36,
+none nearer than 37.
+
+### What is shown
+
+At each refresh, after the game's window, with the console's fog: every
+cell, of the game's chunks or the far ones, in the view cone (this tick's
+yaw and the last one's, for `smooth`'s in-between frames, with task 17's
+margin) and either within the window's rows (or columns) ahead, the
+console's straight horizon, or, with a draw distance above 1, within
+`FarMap_Reach` cells: as far as the fog leaves anything (five times its
+near distance), at most 30. With `fog = soft` its circle is a cell past the
+same reach, from the same chunks. What is shown is hidden again before
+the next refresh, and every far cell is hidden then too. This is task 17's
+widening (moved here from `src/widescreen.c`, which now only says how wide
+the dream is, `Widescreen_Stretch`) with the far chunks added.
+
+Why 30 cells, and no fog past 26624: the cells' depth must stay inside
+the GTE's 16-bit Z (65535, 32 cells). The fog doesn't need to go further:
+at 26624, the clearest a stage has, dp is 2900 at 30 cells, palette row
+5 of 7, so the ground runs on in the stage's own colours, fogged more and
+more, to where the map now ends. A DQA past 16 bits (task 14) would only
+make the far end clearer. With `console` fog that end is a hard edge, now
+a circle at 30 cells instead of the straight line at 20; with `soft` it is
+in the fog.
+
+### Drawing
+
+The Viewport's update (wrapped) draws the shown far cells after the
+game's draw, through its `drawNode`, into the same ordering table but a
+packet area of the port's (6 MB a half; at most 23 KB used in the runs
+below). Each cell takes the game's cells' scale (the StageMap's scale
+ramp, which `src/pacing.c` blends) and their attribute but for GsDOFF.
+Only while the StageMap hangs off a root the update drew. What that draw
+leaves behind that the game might read is put back: the GTE's registers
+(all but SXYP, IRGB, ORGB and LZCR, which are written through others),
+the scratchpad, `GsOUT_PACKET_P` and the TMD renderer's per-object
+statics. Soft fog's depth-cue hook fogs the far cells as any others: they
+are in its grid of cells.
+
+The game's own packet area: the dream's Viewport has 1200 packets of 64
+bytes a half (twice that on a 64-bit host, `VIEWPORT_PACKET_SCALE`), and
+nothing checks for its end. The game's cells shown past its window go
+there, and on the busiest spots below they took it from 95 KB (`main` at
+16:9) to 106 KB of 150; on `main` already soft fog and 16:9 added to it.
+So for each dream the Viewport's `workBase` points at a packet area of the
+port's, 4 MB a half (`FarDayTaskOnInit`), given back before its
+`deinitOt`. Only `Viewport__Update` reads `workBase`.
+
+### Checked
+
+- Lockstep (x86_64 Debug, pace 14, smooth on, seed 4321, 16:9, draw
+  distance 4): task 14's eight spots and days 22 and 340, walking for 700
+  ticks with a STATE line every tick, through links into stages 0 to 6
+  and 13, with `fog = console` and `soft`: `main` and the branch print the
+  same STATE and SAVEBLK lines, all 20 pairs (462 to 754 lines each).
+  Three of them again on the final build (with the larger packet area):
+  the same.
+- 4:3, draw distance 1, `console` (Natural World, turning on the spot):
+  the same STATE and byte-identical freeze shots to `main`. Happy Town
+  spawn 15 at 16:9, draw distance 1, turning: byte-identical shots too
+  (no corner gap in view there).
+- Shots (Natural World day 46, Kyoto, 16:9 and 4:3, draw distance 4,
+  `console` and `soft`, turning): the far ground, rocks, walls and trees
+  past the old horizon; with `soft` the edge of the circle in the fog.
+- Cost (RelWithDebInfo x86_64, under lockstep's gdb, which adds nothing
+  inside these): 50 to 95 µs a frame drawing the far cells, 100 to 200 µs
+  a tick for the refresh (the game's own and the cell walks, 14 ticks a
+  second); a chunk's load 0.05 to 0.1 ms on average, 1.5 ms at most.
+  Memory: the far chunks are host memory, about 46 KB of file and 400 to
+  500 cells each, up to 40 kept; the game's pool is untouched (POOL lines
+  the same).
+- Builds: x86_64 Debug and RelWithDebInfo, i686 RelWithDebInfo (a
+  turning run at 16:9, draw distance 4, `soft`: shots within 51 pixels of
+  x86_64's), Windows x86_64 (MinGW, built, not run), with only the two
+  old "function called through a non-compatible type" warnings.

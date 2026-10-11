@@ -13,4 +13,9 @@ void DrawDistance_Init(int scale);
 // The same while the game runs; in a dream, from its next frame.
 void DrawDistance_Set(int scale);
 
+// The scale, and the fog distance the dream's Viewport has now: the game's
+// times the scale, capped; 0 outside a dream.
+int DrawDistance_Scale(void);
+int DrawDistance_FogNear(void);
+
 #endif

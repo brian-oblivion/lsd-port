@@ -2,8 +2,8 @@
 // starts to draw faded in from it, so that nothing pops into view.
 //
 // The StageMap draws only the cells in a window ahead of the player (20 x 20
-// cells, axis-aligned, shifted toward the look direction; src/widescreen.c
-// widens it at 16:9) and hides the rest with GsDOFF. As the player turns or
+// cells, axis-aligned, shifted toward the look direction; src/far_map.c
+// widens it at 16:9 and deepens it) and hides the rest with GsDOFF. As the player turns or
 // walks, whole rows of cells are switched on at the window's edges, and the
 // game's fog, which depends only on depth, is often thin there: on its
 // clearest stages a cell 20 cells ahead is less than half fogged, and one at
@@ -26,8 +26,8 @@
 // before the fog clears. Without psyz's fade (a build without
 // PSYZ_PRECISE_GEOMETRY) the fog goes to ONE instead, where the game culls.
 // Both are worked out per cell at each tick, when the StageMap has refreshed
-// its window (refreshFootprint, wrapped after src/widescreen.c's so its
-// extra cells count), and eased from frame to frame (the Viewport's update,
+// its window (refreshFootprint, wrapped after src/far_map.c's so its
+// extra cells and chunks count), and eased from frame to frame (the Viewport's update,
 // wrapped). The hook takes a vertex's view position back to the world with
 // GsWSMATRIX and blends the fog of the four nearest cell centres, laid over
 // the game's own: dp + (ONE - dp) * fog. None of it is near the player
@@ -47,6 +47,7 @@
 
 #include "common.h"
 #include "day_task.h"
+#include "far_map_cells.h"
 #include "grid_cell.h"
 #include "lbd_file.h"
 #include "node_guarded_viewport.h"
@@ -72,15 +73,18 @@
 // over, and the last share, over which it turns transparent.
 #define FOG_SHARE 0.7f
 #define FADE_SHARE 0.6f
-// The view drawn in a circle (ShapeView): its radius in cells (the game's
-// window reaches 20 ahead), the cells shown all round, and how far past the
-// view's sides the cells are drawn already for a turn.
-#define VIEW_RADIUS 21.0f
+// The view drawn in a circle (ShapeView): its radius in cells, a cell past
+// the view's reach (FarMap_Reach: the game's window reaches 20 ahead, a
+// draw distance past 1 up to 30), the cells shown all round, and how far
+// past the view's sides the cells are drawn already for a turn.
+#define VIEW_RADIUS (FarMap_Reach() + 1.0f)
 #define NEAR_SHOW 3.0f
 #define TURN_MARGIN 0.45f // radians, about 26 degrees: four ticks of turning
 
 // The cells' fog, by world cell, in a square that wraps around: the loaded
-// chunks span at most 60 cells, so no two of them share a slot.
+// chunks, the game's and src/far_map.c's, reach at most 66 cells from the
+// player, so a cell within 62 of it (the view, and ComputeEdges's square)
+// shares its slot with no loaded cell.
 #define GRID_BITS 7
 #define GRID (1 << GRID_BITS)
 #define GRID_MASK (GRID - 1)
@@ -276,19 +280,20 @@ static void ComputeEdges(StageMap* self) {
 // VIEW_RADIUS is hidden, whatever the game's window says. So a turn brings
 // cells into view that were drawn already (the window jumps sideways a cell
 // at a time, and to the other axis at 45 degrees), and the edge, and its fog,
-// is where it was. Drawing only, as widescreen.c's extra cells: the cells
+// is where it was. Drawing only, as far_map.c's extra cells: the cells
 // shown here are hidden again before the next refresh, and the game hides
 // its window's itself. (VIEW_RADIUS, NEAR_SHOW and TURN_MARGIN are above.)
 
 typedef struct {
-    s16 slot;
+    s16 id; // FarMap_Chunks's
     s16 chunk;
     s16 cell;
 } ShownCell;
 
 static StageMap* sShownMap;
 static int sShownCount;
-static ShownCell sShown[CHUNK_NEIGHBOUR_COUNT * STAGE_SLOT_LATTICE_CELLS];
+static ShownCell sShown[FAR_MAP_MAX_CHUNKS * STAGE_SLOT_LATTICE_CELLS];
+static MapChunk sChunks[FAR_MAP_MAX_CHUNKS];
 
 static void SetCellShown(GridCell* cell, int shown) {
     for (; cell != NULL; cell = cell->nextInCell) {
@@ -304,9 +309,9 @@ static void HideShown(StageMap* self) {
     int i;
     if (self == sShownMap) {
         for (i = 0; i < sShownCount; i++) {
-            ChunkSlot* slot = &self->slots[sShown[i].slot];
-            if (slot->loader->headerReady != 0 && slot->loader->chunkIndex == sShown[i].chunk) {
-                SetCellShown(slot->cells[sShown[i].cell], 0);
+            GridCell** cells = FarMap_Cells(self, sShown[i].id, sShown[i].chunk);
+            if (cells != NULL) {
+                SetCellShown(cells[sShown[i].cell], 0);
             }
         }
     }
@@ -320,17 +325,14 @@ static void ShapeView(StageMap* self) {
     float yaw = param->rotate.vy * (6.2831853f / ONE);
     float fx = SDL_sinf(yaw), fz = SDL_cosf(yaw);
     float half = SDL_atanf(sSlope) + TURN_MARGIN;
+    float radius = FarMap_Reach() + 1.0f;
+    int count = FarMap_Chunks(self, sChunks);
     int i, k;
 
-    for (i = 0; i < CHUNK_NEIGHBOUR_COUNT; i++) {
-        ChunkSlot* slot = &self->slots[i];
-        GteLong* o;
-        if (slot->loader->headerReady == 0 || slot->loader->chunkIndex < 0) {
-            continue;
-        }
-        o = slot->cellParent->coord2->coord.t;
+    for (i = 0; i < count; i++) {
+        const GteLong* o = sChunks[i].origin;
         for (k = 0; k < STAGE_SLOT_LATTICE_CELLS; k++) {
-            GridCell* cell = slot->cells[k];
+            GridCell* cell = sChunks[i].cells[k];
             float dx = (o[0] + (k % STAGE_CHUNK_CELLS + 0.5f) * STAGE_CELL_SIZE - pos[0]) /
                        STAGE_CELL_SIZE;
             float dz = (o[2] + (k / STAGE_CHUNK_CELLS + 0.5f) * STAGE_CELL_SIZE - pos[2]) /
@@ -340,7 +342,7 @@ static void ShapeView(StageMap* self) {
             if (!CellHasModel(cell)) {
                 continue;
             }
-            if (dist > VIEW_RADIUS) {
+            if (dist > radius) {
                 SetCellShown(cell, 0);
                 continue;
             }
@@ -352,8 +354,8 @@ static void ShapeView(StageMap* self) {
             }
             if (want && !CellShown(cell)) {
                 SetCellShown(cell, 1);
-                sShown[sShownCount].slot = (s16)i;
-                sShown[sShownCount].chunk = (s16)slot->loader->chunkIndex;
+                sShown[sShownCount].id = (s16)sChunks[i].id;
+                sShown[sShownCount].chunk = (s16)sChunks[i].chunk;
                 sShown[sShownCount].cell = (s16)k;
                 sShownCount++;
             }
@@ -362,7 +364,7 @@ static void ShapeView(StageMap* self) {
 }
 
 static void SoftRefreshFootprint(StageMap* self) {
-    int i, k;
+    int i, k, count;
     if (sActive) {
         HideShown(self);
     }
@@ -385,15 +387,11 @@ static void SoftRefreshFootprint(StageMap* self) {
         sSlopeMargin = SDL_sqrtf(1.0f + sSlope * sSlope);
     }
     ShapeView(self);
-    for (i = 0; i < CHUNK_NEIGHBOUR_COUNT; i++) {
-        ChunkSlot* slot = &self->slots[i];
-        GteLong* o;
-        if (slot->loader->headerReady == 0 || slot->loader->chunkIndex < 0) {
-            continue;
-        }
-        o = slot->cellParent->coord2->coord.t;
+    count = FarMap_Chunks(self, sChunks);
+    for (i = 0; i < count; i++) {
+        const GteLong* o = sChunks[i].origin;
         for (k = 0; k < STAGE_SLOT_LATTICE_CELLS; k++) {
-            GridCell* cell = slot->cells[k];
+            GridCell* cell = sChunks[i].cells[k];
             s32 cx = (o[0] + (k % STAGE_CHUNK_CELLS) * STAGE_CELL_SIZE) >> STAGE_CELL_SHIFT;
             s32 cz = (o[2] + (k / STAGE_CHUNK_CELLS) * STAGE_CELL_SIZE) >> STAGE_CELL_SHIFT;
             FogCell* c = CellAt(cx, cz);
@@ -477,6 +475,10 @@ static void SoftDayTaskOnDeinit(DayTask* self) {
     sInDream = 0;
     Stop();
     sDayTaskOnDeinit(self);
+}
+
+int SoftFog_On(void) {
+    return sActive;
 }
 
 void SoftFog_Set(int on) {
